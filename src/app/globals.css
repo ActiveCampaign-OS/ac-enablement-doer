@@ -1,0 +1,205 @@
+/* ──────────────────────────────────────────────────────────────────
+ * Camp design system tokens for AC Doc Auditor.
+ *
+ * Treated as an AI surface per Camp's three-layer theme model:
+ * charcoal foundation, midnight-white text, AC blue primary, AI
+ * gradients reserved for AI moments (the finding-detail chat assistant).
+ *
+ * Ported from Echo (Rival Radar) 2026-06-01 — same Camp primitives,
+ * same brand voice. Do not invent new values without consulting the
+ * Camp DESIGN source.
+ * ────────────────────────────────────────────────────────────────── */
+
+@import "tailwindcss";
+
+@theme {
+  /* ── Color · AC Blue (primary interaction family) ──────────────── */
+  --color-ac-blue-1000: #00002d;
+  --color-ac-blue-900: #001961;
+  --color-ac-blue-800: #0031a9;
+  --color-ac-blue-700: #004cff;
+  --color-ac-blue-600: #517fff;
+  --color-ac-blue-500: #819eff;
+  --color-ac-blue-400: #aec1ff;
+  --color-ac-blue-300: #d7e5ff;
+  --color-ac-blue-200: #f0f5ff;
+  --color-ac-blue-100: #f5f9ff;
+
+  /* ── Color · Charcoal (AI + navigation foundation) ─────────────── */
+  --color-charcoal-1000: #00001f;
+  --color-charcoal-950: #030324;
+  --color-charcoal-900: #05052b;
+  --color-charcoal-850: #161636;
+  --color-charcoal-800: #25263b;
+  --color-charcoal-700: #35354a;
+  --color-charcoal-600: #404162;
+  --color-charcoal-500: #70718d;
+  --color-charcoal-400: #9f9fb8;
+  --color-charcoal-300: #dfe0ea;
+  --color-charcoal-200: #ededf4;
+  --color-charcoal-100: #f7f7fc;
+
+  /* ── Color · Midnight (neutral product family + on-emphasis text) ─ */
+  --color-midnight-1000: #142341;
+  --color-midnight-900: #28354f;
+  --color-midnight-800: #394863;
+  --color-midnight-700: #5d6981;
+  --color-midnight-600: #7d8799;
+  --color-midnight-500: #9ea5b2;
+  --color-midnight-400: #c1c4cb;
+  --color-midnight-300: #d4d7dc;
+  --color-midnight-200: #eef0f2;
+  --color-midnight-100: #f9f9f9;
+  --color-midnight-white: #ffffff;
+
+  /* ── Color · Violet (AI / educational accent) ──────────────────── */
+  --color-violet-1000: #211556;
+  --color-violet-950: #2f3067;
+  --color-violet-900: #312279;
+  --color-violet-800: #432e9d;
+  --color-violet-700: #6152ca;
+  --color-violet-600: #7c73e7;
+  --color-violet-500: #9b98f3;
+  --color-violet-400: #bdbef7;
+  --color-violet-300: #d6d8ff;
+  --color-violet-200: #f4f4ff;
+  --color-violet-100: #f7f8ff;
+
+  /* ── Color · Moss (success / PUBLISHED status) ─────────────────── */
+  --color-moss-1000: #162919;
+  --color-moss-900: #233c27;
+  --color-moss-800: #2b5232;
+  --color-moss-700: #368141;
+  --color-moss-600: #60a76a;
+  --color-moss-500: #7db485;
+  --color-moss-400: #abcfaf;
+  --color-moss-300: #d4ecd6;
+  --color-moss-200: #f1f7f1;
+  --color-moss-100: #f4faf5;
+
+  /* ── Color · Red (HIGH severity / destructive) ─────────────────── */
+  --color-red-1000: #550000;
+  --color-red-900: #8f0606;
+  --color-red-800: #a61515;
+  --color-red-700: #cd2929;
+  --color-red-600: #ff6d6d;
+  --color-red-500: #ff8686;
+  --color-red-400: #ffaaaa;
+  --color-red-300: #ffcaca;
+  --color-red-200: #ffeded;
+  --color-red-100: #fff5f5;
+
+  /* ── Color · Midday (MEDIUM severity / warning) ────────────────── */
+  --color-midday-1000: #312306;
+  --color-midday-900: #53411a;
+  --color-midday-800: #80621f;
+  --color-midday-700: #dea310;
+  --color-midday-600: #f3bb30;
+  --color-midday-500: #ffce54;
+  --color-midday-400: #ffdc8d;
+  --color-midday-300: #fee8b5;
+  --color-midday-200: #fff5de;
+  --color-midday-100: #fffcf5;
+
+  /* ── Color · Dusk (upgrade / info) ─────────────────────────────── */
+  --color-dusk-1000: #0a2832;
+  --color-dusk-900: #033c4c;
+  --color-dusk-800: #0d4f64;
+  --color-dusk-700: #367287;
+  --color-dusk-600: #658d9d;
+  --color-dusk-500: #8aabb7;
+  --color-dusk-400: #b0c9d3;
+  --color-dusk-300: #d7e8ef;
+  --color-dusk-200: #eaf5fa;
+  --color-dusk-100: #f2fafd;
+
+  /* ── Typography · Fonts ────────────────────────────────────────── */
+  /* IBM Plex Sans + Mono wired via next/font in layout.tsx; CSS variables
+   * are injected on <html> and aliased here.                              */
+  --font-sans: var(--font-plex-sans), "IBM Plex Sans", ui-sans-serif, system-ui, sans-serif;
+  --font-mono: var(--font-plex-mono), "IBM Plex Mono", ui-monospace, "SF Mono", monospace;
+
+  /* ── Typography · Scale (Camp scale-1 → scale-7) ──────────────── */
+  --text-scale-1: 12px;
+  --text-scale-1--line-height: 16px;
+  --text-scale-2: 14px;
+  --text-scale-2--line-height: 20px;
+  --text-scale-3: 16px;
+  --text-scale-3--line-height: 24px;
+  --text-scale-4: 20px;
+  --text-scale-4--line-height: 28px;
+  --text-scale-5: 24px;
+  --text-scale-5--line-height: 36px;
+  --text-scale-6: 32px;
+  --text-scale-6--line-height: 40px;
+  --text-scale-7: 36px;
+  --text-scale-7--line-height: 44px;
+
+  /* ── Spacing · 2/4/8/16/24 ladder ──────────────────────────────── */
+  --spacing: 4px;
+
+  /* ── Border radius · Camp shape language ───────────────────────── */
+  --radius-0: 0;
+  --radius-1: 2px;
+  --radius-2: 4px;
+  --radius-3: 8px;
+  --radius-4: 12px;
+  --radius-5: 16px;
+  --radius-rounded: 99rem;
+
+  /* ── Shadows · Camp elevation ──────────────────────────────────── */
+  --shadow-e1: 0px 1px 4px rgba(20, 35, 65, 0.16), 0px 0px 2px rgba(20, 35, 65, 0.16);
+  --shadow-e2: 0px 2px 8px rgba(20, 35, 65, 0.16), 0px 0px 2px rgba(20, 35, 65, 0.12);
+  --shadow-e3: 0px 0px 8px 0px rgba(20, 35, 65, 0.12), 0px 8px 20px 0px rgba(20, 35, 65, 0.16);
+  --shadow-focus: 0 0 0 2px rgba(215, 229, 255, 1);
+}
+
+/* ──────────────────────────────────────────────────────────────────
+ * Project-local extension tokens.
+ * ────────────────────────────────────────────────────────────────── */
+:root {
+  /* Doc Auditor's own brand signature — dusk → violet (Camp dusk-700 →
+   * violet-700). Distinct from the AC AI-moment gradients below; used by the
+   * nav brand mark + the DocumentBackdrop audit-scan. */
+  --gradient-doc-signature: linear-gradient(135deg, #0d4f64 0%, #6152ca 100%);
+  --gradient-ai-border-solid: linear-gradient(90deg, #7c73e7 0%, #517fff 50.79%, #e949d8 99.99%);
+  --gradient-ai-icon: linear-gradient(180deg, #004cff 21%, #eb4786 67%, #f67dac 100%);
+  --gradient-ai-user-message: linear-gradient(to right, #001961, #00002d);
+  --ai-engagement-surface: color-mix(in srgb, #ffffff 5%, transparent);
+  --ai-engagement-surface-hover: color-mix(in srgb, #ffffff 8%, transparent);
+  --ai-engagement-border: color-mix(in srgb, #a3a3a3 40%, transparent);
+}
+
+/* ──────────────────────────────────────────────────────────────────
+ * Base reset + body defaults.
+ * ────────────────────────────────────────────────────────────────── */
+*, *::before, *::after {
+  box-sizing: border-box;
+}
+
+html {
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+body {
+  margin: 0;
+  background-color: var(--color-charcoal-1000);
+  color: var(--color-midnight-white);
+  font-size: 14px;
+  line-height: 20px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+:focus-visible {
+  outline: none;
+  box-shadow: var(--shadow-focus);
+}

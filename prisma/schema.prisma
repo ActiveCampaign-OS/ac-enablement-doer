@@ -1,0 +1,151 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ---------------------------------------------------------------------------
+// Lifecycle. Phase-2 statuses (GENERATING, DRAFT_READY) are included now so
+// the enum never needs a migration when asset generation lands.
+// ---------------------------------------------------------------------------
+enum RequestStatus {
+  SUBMITTED // created, assessment queued
+  ASSESSING // LLM assessment in flight
+  NEEDS_INFO // agent posted scoping questions; waiting on stakeholder
+  RECOMMENDED // assessment complete; waiting on stakeholder confirm/decline
+  CONFIRMED // stakeholder confirmed scope + deliverable (V1 terminal for AUTONOMOUS)
+  GENERATING // phase 2: asset generation in flight
+  DRAFT_READY // phase 2: draft asset awaiting operator review
+  HANDOFF_REQUIRED // deliverable needs a human build (Rise/Solidroad) — operator queue
+  APPROVED // operator approved handoff / draft
+  DELIVERED // asset delivered (phase 2) or handoff completed
+  DECLINED // stakeholder or operator declined (requires category+reason)
+  ARCHIVED
+}
+
+enum DeliverableType {
+  JOB_AID
+  MANAGER_GUIDE
+  DECK
+  SOLIDROAD_SIM_SPEC
+  RISE_COURSE
+  OTHER
+}
+
+enum Autonomy {
+  AUTONOMOUS
+  HUMAN_HANDOFF
+}
+
+enum MessageRole {
+  STAKEHOLDER
+  AGENT
+  OPERATOR
+}
+
+model TrainingRequest {
+  id              String           @id @default(cuid())
+  title           String
+  description     String           @db.Text // what needs training + why
+  requesterEmail  String // from SSO header
+  audience        String? // who is being trained
+  businessGoal    String?          @db.Text // outcome the stakeholder wants
+  urgency         String? // freeform ("this quarter", "before June launch")
+  dueDate         DateTime?
+  contentLinks    String[] // source material URLs (Confluence, GDocs, …)
+  status          RequestStatus    @default(SUBMITTED)
+  recommendedType DeliverableType? // denormalized primary recommendation
+  autonomy        Autonomy? // derived server-side from recommendedType
+  confirmedType   DeliverableType? // what the stakeholder confirmed (may differ after override)
+  assignedTo      String? // operator email
+  overrideReason  String?          @db.Text // when operator overrides the recommendation
+  lastActivityAt  DateTime         @default(now()) // drives stale nudges
+  lastNudgedAt    DateTime?
+  assessments     Assessment[]
+  messages        RequestMessage[]
+  actions         RequestAction[]
+  feedback        RequestFeedback[]
+  createdAt       DateTime         @default(now())
+  updatedAt       DateTime         @updatedAt
+
+  @@index([status])
+  @@index([requesterEmail])
+  @@index([createdAt(sort: Desc)])
+}
+
+// One row per LLM assessment pass (re-runs after NEEDS_INFO bump version).
+model Assessment {
+  id               String          @id @default(cuid())
+  requestId        String
+  request          TrainingRequest @relation(fields: [requestId], references: [id], onDelete: Cascade)
+  version          Int // 1..n per request
+  model            String // e.g. claude-sonnet-4-6
+  frameworkVersion String // Spine doc version/hash used
+  sufficient       Boolean // false → NEEDS_INFO
+  missingInputs    String[] // what's missing when insufficient
+  spineSteps       Json // [{ step, summary }] per Spine stage
+  recommendations  Json // [{ deliverableType, rationale, confidence, effort: {size,hours} }]
+  scopingQuestions String[]
+  rawExcerpt       String?         @db.Text // first ~2k chars of raw LLM output for debugging
+  error            String?         @db.Text // non-null if the pass failed
+  createdAt        DateTime        @default(now())
+
+  @@index([requestId, version(sort: Desc)])
+}
+
+// Q&A thread on the request detail page.
+model RequestMessage {
+  id        String          @id @default(cuid())
+  requestId String
+  request   TrainingRequest @relation(fields: [requestId], references: [id], onDelete: Cascade)
+  role      MessageRole
+  author    String // email or "agent"
+  body      String          @db.Text
+  metadata  Json            @default("{}") // e.g. { assessmentId } when agent posts questions
+  createdAt DateTime        @default(now())
+
+  @@index([requestId, createdAt])
+}
+
+// Audit trail — every state transition and notable act, with the SSO actor.
+model RequestAction {
+  id        String          @id @default(cuid())
+  requestId String
+  request   TrainingRequest @relation(fields: [requestId], references: [id], onDelete: Cascade)
+  action    String // e.g. "status:SUBMITTED→ASSESSING", "assessed", "nudged"
+  actor     String? // SSO email, or null for system
+  source    String // 'ui' | 'cron' | 'system'
+  metadata  Json            @default("{}")
+  createdAt DateTime        @default(now())
+
+  @@index([requestId])
+}
+
+// Decline/override training signal — fed back into future assessments as
+// negative examples (doc-auditor feedback-learning pattern).
+model RequestFeedback {
+  id        String          @id @default(cuid())
+  requestId String
+  request   TrainingRequest @relation(fields: [requestId], references: [id], onDelete: Cascade)
+  category  String // 'wrong_deliverable' | 'not_training_problem' | 'duplicate_request' | 'too_big_for_agent' | 'no_longer_needed' | 'other'
+  reason    String          @db.Text
+  actor     String?
+  createdAt DateTime        @default(now())
+
+  @@index([category, createdAt(sort: Desc)])
+}
+
+// Versioned Spine framework content (repo seed + optional Confluence refresh).
+model FrameworkDoc {
+  id          String   @id @default(cuid())
+  source      String // 'REPO' | 'CONFLUENCE'
+  version     String // page-version or content-hash short form
+  contentHash String   @unique
+  content     String   @db.Text
+  fetchedAt   DateTime @default(now())
+
+  @@index([fetchedAt(sort: Desc)])
+}
