@@ -57,31 +57,29 @@ export function ThreadPanel({
   }
 
   const roleStyle: Record<string, string> = {
-    AGENT: 'border-ac-blue-800 bg-ac-blue-1000/40',
-    STAKEHOLDER: 'border-charcoal-700 bg-charcoal-900',
-    OPERATOR: 'border-violet-900 bg-violet-950/40',
+    AGENT: 'nb-message-agent',
+    STAKEHOLDER: 'nb-message-stakeholder',
+    OPERATOR: 'nb-message-operator',
   }
 
   return (
-    <section>
-      <h2 className="text-sm font-semibold text-charcoal-300 uppercase tracking-wide mb-3">
-        Conversation
-      </h2>
+    <section className="nb-panel p-5 sm:p-6">
+      <h2 className="nb-section-title mb-4">Conversation</h2>
       <div className="space-y-3">
         {messages.length === 0 && (
-          <p className="text-sm text-charcoal-500">No messages yet — the agent posts here when it has questions or a recommendation.</p>
+          <p className="border-3 border-dashed border-black p-4 text-sm font-semibold">No messages yet — the agent posts here when it has questions or a recommendation.</p>
         )}
         {messages.map((m) => (
-          <div key={m.id} className={`border rounded-3 px-4 py-3 ${roleStyle[m.role] ?? roleStyle.STAKEHOLDER}`}>
-            <div className="text-xs text-charcoal-400 mb-1">
+          <div key={m.id} className={`border-3 border-black px-4 py-3 ${roleStyle[m.role] ?? roleStyle.STAKEHOLDER}`}>
+            <div className="text-xs font-black uppercase tracking-wide mb-2">
               {m.role === 'AGENT' ? '🤖 agent' : m.author} ·{' '}
               {m.createdAt.slice(0, 16).replace('T', ' ')}
             </div>
-            <div className="text-sm text-charcoal-100 whitespace-pre-wrap">{m.body}</div>
+            <div className="text-sm font-semibold whitespace-pre-wrap">{m.body}</div>
           </div>
         ))}
         {(reassessing || status === 'ASSESSING') && (
-          <div className="border border-ac-blue-800 bg-ac-blue-1000/40 rounded-3 px-4 py-3 text-sm text-ac-blue-300 animate-pulse">
+          <div className="border-3 border-black bg-[#ffe45c] px-4 py-3 text-sm font-black animate-pulse">
             🤖 re-assessing with your reply…
           </div>
         )}
@@ -97,17 +95,17 @@ export function ThreadPanel({
               ? 'Answer the agent’s questions — it will re-assess automatically.'
               : 'Add context or push back on the recommendation…'
           }
-          className="flex-1 bg-charcoal-900 border border-charcoal-700 rounded-2 px-3 py-2 text-sm placeholder-charcoal-500 focus:outline-none focus:border-ac-blue-600"
+          className="nb-input flex-1"
         />
         <button
           onClick={send}
           disabled={busy || !body.trim()}
-          className="self-end bg-ac-blue-700 hover:bg-ac-blue-600 disabled:opacity-50 text-midnight-white px-4 py-2 rounded-2 text-sm font-medium"
+          className="nb-button nb-button-primary self-end"
         >
           Send
         </button>
       </div>
-      {error && <p className="text-sm text-red-400 mt-2">{error}</p>}
+      {error && <p className="border-3 border-black bg-[#ff9696] px-3 py-2 text-sm font-bold mt-3">{error}</p>}
     </section>
   )
 }

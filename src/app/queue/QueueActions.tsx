@@ -48,8 +48,7 @@ export function QueueActions({
     return res.ok
   }
 
-  const btn =
-    'text-xs border border-charcoal-700 hover:bg-charcoal-800 disabled:opacity-50 text-charcoal-200 px-2.5 py-1 rounded-2 transition-colors'
+  const btn = 'nb-button nb-button-secondary text-[11px] px-3 py-1'
 
   return (
     <div className="mt-2 space-y-2">
@@ -70,7 +69,7 @@ export function QueueActions({
           <button
             disabled={busy}
             onClick={() => call('POST', `/api/requests/${requestId}/action`, { action: 'APPROVED' })}
-            className={`${btn} border-emerald-800 text-emerald-300 hover:bg-emerald-950`}
+            className="nb-button nb-button-primary text-[11px] px-3 py-1"
           >
             Approve handoff
           </button>
@@ -79,7 +78,7 @@ export function QueueActions({
           <button
             disabled={busy}
             onClick={() => call('POST', `/api/requests/${requestId}/action`, { action: 'DELIVERED' })}
-            className={`${btn} border-emerald-800 text-emerald-300 hover:bg-emerald-950`}
+            className="nb-button nb-button-primary text-[11px] px-3 py-1"
           >
             Mark delivered
           </button>
@@ -101,11 +100,11 @@ export function QueueActions({
       </div>
 
       {overriding && (
-        <div className="flex items-center gap-2 flex-wrap">
+        <div className="border-3 border-black bg-[#f7b1e6] p-3 flex items-center gap-2 flex-wrap">
           <select
             value={overrideType}
             onChange={(e) => setOverrideType(e.target.value as DeliverableType)}
-            className="text-xs bg-charcoal-900 border border-charcoal-700 rounded-2 px-2 py-1"
+            className="nb-input w-auto text-xs"
           >
             {TYPES.map((t) => (
               <option key={t} value={t}>
@@ -117,7 +116,7 @@ export function QueueActions({
             value={overrideReason}
             onChange={(e) => setOverrideReason(e.target.value)}
             placeholder="Why override? (feeds assessment learning)"
-            className="text-xs flex-1 min-w-48 bg-charcoal-900 border border-charcoal-700 rounded-2 px-2 py-1 placeholder-charcoal-500"
+            className="nb-input flex-1 min-w-48 text-xs"
           />
           <button
             disabled={busy || (overrideType !== recommendedType && !overrideReason.trim())}
@@ -128,14 +127,14 @@ export function QueueActions({
               })
               if (ok) setOverriding(false)
             }}
-            className={`${btn} border-ac-blue-700 text-ac-blue-300`}
+            className="nb-button nb-button-purple text-[11px] px-3 py-1"
           >
             Apply
           </button>
         </div>
       )}
 
-      {error && <p className="text-xs text-red-400">{error}</p>}
+      {error && <p className="border-3 border-black bg-[#ff9696] px-3 py-2 text-xs font-bold">{error}</p>}
     </div>
   )
 }

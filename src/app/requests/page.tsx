@@ -36,21 +36,24 @@ export default async function RequestsPage({
   })
 
   return (
-    <div className="max-w-4xl mx-auto py-8">
-      <div className="flex items-center justify-between mb-6">
-        <h1 className="text-2xl font-semibold tracking-tight">
-          {all ? 'All requests' : 'My requests'}
-        </h1>
-        <div className="flex items-center gap-3 text-sm">
+    <div className="max-w-4xl mx-auto py-4">
+      <div className="flex items-end justify-between gap-5 mb-8">
+        <div>
+          <span className="nb-kicker">{all ? 'Operator view' : 'Request tracker'}</span>
+          <h1 className="mt-3 text-4xl font-black uppercase tracking-[-0.08em] leading-none">
+            {all ? 'All requests' : 'My requests'}
+          </h1>
+        </div>
+        <div className="flex items-center gap-3">
           <Link
             href={all ? '/requests' : '/requests?all=1'}
-            className="text-charcoal-300 hover:text-midnight-white"
+            className="nb-button nb-button-secondary"
           >
-            {all ? '→ mine only' : '→ view all'}
+            {all ? 'Mine only' : 'View all'}
           </Link>
           <Link
             href="/requests/new"
-            className="bg-ac-blue-700 hover:bg-ac-blue-600 text-midnight-white px-3 py-1.5 rounded-2 font-medium"
+            className="nb-button nb-button-primary"
           >
             + New
           </Link>
@@ -58,18 +61,18 @@ export default async function RequestsPage({
       </div>
 
       {requests.length === 0 ? (
-        <p className="text-charcoal-400">No requests yet.</p>
+        <p className="nb-panel-soft p-5 font-semibold">No requests yet.</p>
       ) : (
-        <ul className="divide-y divide-charcoal-800 border border-charcoal-800 rounded-3">
+        <ul className="nb-list">
           {requests.map((r) => (
             <li key={r.id}>
               <Link
                 href={`/requests/${r.id}`}
-                className="flex items-center justify-between gap-4 px-4 py-3 hover:bg-charcoal-900 transition-colors"
+                className="nb-row-link items-center justify-between gap-4 px-4 py-4"
               >
                 <div className="min-w-0">
-                  <div className="truncate font-medium">{r.title}</div>
-                  <div className="text-xs text-charcoal-400 mt-0.5">
+                  <div className="truncate font-bold">{r.title}</div>
+                  <div className="text-xs font-semibold text-[#625d53] mt-1">
                     {r.requesterEmail}
                     {r.recommendedType ? ` · ${r.confirmedType ?? r.recommendedType}` : ''}
                     {` · ${r._count.messages} msgs · v${r._count.assessments}`}

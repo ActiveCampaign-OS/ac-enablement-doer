@@ -38,19 +38,21 @@ export default function NewRequestPage() {
     }
   }
 
-  const input =
-    'w-full bg-charcoal-900 border border-charcoal-700 rounded-2 px-3 py-2 text-sm text-midnight-white placeholder-charcoal-500 focus:outline-none focus:border-ac-blue-600'
-  const label = 'block text-sm font-medium text-charcoal-200 mb-1'
+  const input = 'nb-input'
+  const label = 'nb-label'
 
   return (
-    <div className="max-w-2xl mx-auto py-8">
-      <h1 className="text-2xl font-semibold tracking-tight mb-1">New training request</h1>
-      <p className="text-sm text-charcoal-400 mb-6">
-        The agent will assess this against the Design to Impact Spine. The more you can say about
-        the business goal and who it&apos;s for, the fewer questions it will need to ask.
-      </p>
+    <div className="max-w-2xl mx-auto py-4">
+      <div className="mb-7 space-y-3">
+        <span className="nb-kicker">Intake desk</span>
+        <h1 className="text-4xl font-black uppercase tracking-[-0.08em] leading-none">New training request</h1>
+        <p className="max-w-xl text-sm font-semibold leading-6 text-[#5f594f]">
+          Give the agent the change you want to see. More context up front means fewer follow-up
+          questions later.
+        </p>
+      </div>
 
-      <form onSubmit={onSubmit} className="space-y-5">
+      <form onSubmit={onSubmit} className="nb-panel p-5 sm:p-7 space-y-5">
         <div>
           <label className={label} htmlFor="title">
             Title <span className="text-red-400">*</span>
@@ -70,7 +72,7 @@ export default function NewRequestPage() {
             placeholder="Describe the change you want to see. What are people doing today, and what should they be doing instead?"
           />
         </div>
-        <div className="grid grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <div>
             <label className={label} htmlFor="audience">Audience</label>
             <input id="audience" name="audience" className={input} placeholder="e.g. AEs, CS managers" />
@@ -107,7 +109,7 @@ export default function NewRequestPage() {
                 <button
                   type="button"
                   onClick={() => setLinks([...links, ''])}
-                  className="shrink-0 px-3 rounded-2 border border-charcoal-700 text-charcoal-300 hover:text-midnight-white"
+                  className="nb-button nb-button-secondary shrink-0 px-3"
                   aria-label="Add link"
                 >
                   +
@@ -116,7 +118,7 @@ export default function NewRequestPage() {
                 <button
                   type="button"
                   onClick={() => setLinks(links.filter((_, j) => j !== i))}
-                  className="shrink-0 px-3 rounded-2 border border-charcoal-700 text-charcoal-300 hover:text-red-300"
+                  className="nb-button nb-button-danger shrink-0 px-3"
                   aria-label="Remove link"
                 >
                   −
@@ -126,12 +128,12 @@ export default function NewRequestPage() {
           ))}
         </div>
 
-        {error && <p className="text-sm text-red-400">{error}</p>}
+        {error && <p className="border-3 border-black bg-[#ff9696] px-3 py-2 text-sm font-bold">{error}</p>}
 
         <button
           type="submit"
           disabled={submitting}
-          className="bg-ac-blue-700 hover:bg-ac-blue-600 disabled:opacity-50 text-midnight-white px-5 py-2.5 rounded-2 font-medium transition-colors"
+          className="nb-button nb-button-primary"
         >
           {submitting ? 'Submitting…' : 'Submit for assessment'}
         </button>

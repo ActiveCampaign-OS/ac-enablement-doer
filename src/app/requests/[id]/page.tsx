@@ -38,29 +38,34 @@ export default async function RequestDetailPage({
   const handoff = effectiveType ? DELIVERABLE_AUTONOMY[effectiveType] === 'HUMAN_HANDOFF' : false
 
   return (
-    <div className="max-w-3xl mx-auto py-8 space-y-8">
-      <header className="space-y-2">
+    <div className="max-w-3xl mx-auto py-4 space-y-8">
+      <header className="nb-panel p-5 sm:p-7 space-y-4">
         <div className="flex items-start justify-between gap-4">
-          <h1 className="text-2xl font-semibold tracking-tight">{request.title}</h1>
+          <div className="min-w-0 space-y-3">
+            <span className="nb-kicker">Request file</span>
+            <h1 className="text-4xl font-black uppercase tracking-[-0.07em] leading-none break-words">
+              {request.title}
+            </h1>
+          </div>
           <StatusChip status={request.status} />
         </div>
-        <p className="text-sm text-charcoal-400">
+        <p className="border-y-3 border-black py-3 text-xs font-bold uppercase tracking-wide text-[#5f594f]">
           {request.requesterEmail}
           {request.audience ? ` · for ${request.audience}` : ''}
           {request.dueDate ? ` · due ${request.dueDate.toISOString().slice(0, 10)}` : ''}
           {request.assignedTo ? ` · assigned to ${request.assignedTo}` : ''}
         </p>
-        <p className="text-charcoal-200 whitespace-pre-wrap">{request.description}</p>
+        <p className="font-semibold whitespace-pre-wrap">{request.description}</p>
         {request.businessGoal && (
-          <p className="text-sm text-charcoal-300">
-            <span className="font-medium text-charcoal-200">Business goal:</span> {request.businessGoal}
+          <p className="text-sm font-semibold">
+            <span className="font-black uppercase">Business goal:</span> {request.businessGoal}
           </p>
         )}
         {request.contentLinks.length > 0 && (
-          <ul className="text-sm space-y-0.5">
+          <ul className="nb-panel-soft p-4 text-sm space-y-1">
             {request.contentLinks.map((l) => (
               <li key={l}>
-                <a href={l} className="text-ac-blue-400 hover:underline break-all" target="_blank" rel="noreferrer">
+                <a href={l} className="font-bold underline decoration-2 underline-offset-2 break-all" target="_blank" rel="noreferrer">
                   {l}
                 </a>
               </li>
@@ -70,12 +75,10 @@ export default async function RequestDetailPage({
       </header>
 
       {latest && !latest.error && (
-        <section className="border border-charcoal-800 rounded-3 p-5 space-y-4">
+        <section className="nb-panel p-5 sm:p-6 space-y-5">
           <div className="flex items-center justify-between">
-            <h2 className="text-sm font-semibold text-charcoal-300 uppercase tracking-wide">
-              Assessment v{latest.version}
-            </h2>
-            <span className="text-xs text-charcoal-500">
+            <h2 className="nb-section-title">Assessment v{latest.version}</h2>
+            <span className="text-xs font-bold text-[#625d53]">
               {latest.model} · spine {latest.frameworkVersion}
             </span>
           </div>
@@ -83,27 +86,27 @@ export default async function RequestDetailPage({
           {recs.length > 0 ? (
             <div className="space-y-3">
               {recs.map((r, i) => (
-                <div key={i} className={i === 0 ? '' : 'opacity-70'}>
+                <div key={i} className={i === 0 ? 'border-l-[6px] border-black pl-3' : 'border-l-3 border-black/30 pl-3'}>
                   <div className="flex items-center gap-2 flex-wrap">
-                    <span className="font-semibold">{i === 0 ? 'Recommended:' : 'Alternative:'}</span>
-                    <span className="font-mono text-sm bg-charcoal-900 border border-charcoal-700 rounded px-2 py-0.5">
+                    <span className="font-black uppercase text-xs">{i === 0 ? 'Recommended' : 'Alternative'}</span>
+                    <span className="font-mono text-xs font-bold bg-[#b7a0ff] border-2 border-black px-2 py-1">
                       {r.deliverableType}
                     </span>
                     {DELIVERABLE_AUTONOMY[r.deliverableType as DeliverableType] === 'HUMAN_HANDOFF' && (
-                      <span className="text-[11px] font-semibold bg-orange-900 text-orange-300 rounded-full px-2 py-0.5">
+                      <span className="nb-status nb-status-handoff">
                         HUMAN BUILD
                       </span>
                     )}
-                    <span className="text-xs text-charcoal-400">
+                    <span className="text-xs font-bold text-[#625d53]">
                       {r.confidence}% · ~{r.effort?.hours ?? '?'}h {r.effort?.size ?? ''}
                     </span>
                   </div>
-                  <p className="text-sm text-charcoal-300 mt-1">{r.rationale}</p>
+                  <p className="text-sm font-semibold mt-2">{r.rationale}</p>
                 </div>
               ))}
             </div>
           ) : (
-            <p className="text-sm text-charcoal-300">
+            <p className="text-sm font-semibold">
               Not enough to recommend yet
               {latest.missingInputs.length ? ` — missing: ${latest.missingInputs.join('; ')}` : ''}.
               Answer the agent&apos;s questions in the thread below.
@@ -111,15 +114,14 @@ export default async function RequestDetailPage({
           )}
 
           {(latest.spineSteps as Array<{ step: string; summary: string }>).length > 0 && (
-            <details className="text-sm">
-              <summary className="cursor-pointer text-charcoal-400 hover:text-charcoal-200">
+            <details className="border-t-3 border-black pt-3 text-sm">
+              <summary className="cursor-pointer font-black uppercase text-xs tracking-wide">
                 Spine walk-through
               </summary>
               <ul className="mt-2 space-y-2">
                 {(latest.spineSteps as Array<{ step: string; summary: string }>).map((s, i) => (
                   <li key={i}>
-                    <span className="font-medium text-charcoal-200">{s.step}:</span>{' '}
-                    <span className="text-charcoal-300">{s.summary}</span>
+                    <span className="font-black">{s.step}:</span> {s.summary}
                   </li>
                 ))}
               </ul>
@@ -148,12 +150,12 @@ export default async function RequestDetailPage({
         }))}
       />
 
-      <section>
-        <h2 className="text-sm font-semibold text-charcoal-300 uppercase tracking-wide mb-3">Timeline</h2>
-        <ul className="space-y-1.5 text-xs text-charcoal-400">
+      <section className="nb-panel p-5">
+        <h2 className="nb-section-title mb-4">Timeline</h2>
+        <ul className="space-y-3 text-xs font-semibold">
           {request.actions.map((a) => (
-            <li key={a.id} className="flex gap-2">
-              <span className="text-charcoal-500 shrink-0 font-mono">
+            <li key={a.id} className="nb-timeline-item flex gap-2">
+              <span className="text-[#625d53] shrink-0 font-mono">
                 {a.createdAt.toISOString().slice(0, 16).replace('T', ' ')}
               </span>
               <span>

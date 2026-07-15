@@ -105,7 +105,8 @@ export function RequestActions({
   if (!visible.length && !canDecline) return null
 
   return (
-    <section className="space-y-3">
+    <section className="nb-panel p-5 space-y-4">
+      <h2 className="nb-section-title">Next move</h2>
       <div className="flex items-center gap-2 flex-wrap">
         {visible.map((b) => (
           <button
@@ -114,8 +115,8 @@ export function RequestActions({
             disabled={busy}
             className={
               b.primary
-                ? 'bg-ac-blue-700 hover:bg-ac-blue-600 disabled:opacity-50 text-midnight-white px-4 py-2 rounded-2 text-sm font-medium transition-colors'
-                : 'border border-charcoal-700 hover:bg-charcoal-800 disabled:opacity-50 text-charcoal-200 px-4 py-2 rounded-2 text-sm transition-colors'
+                ? 'nb-button nb-button-primary'
+                : 'nb-button nb-button-secondary'
             }
           >
             {b.label}
@@ -125,7 +126,7 @@ export function RequestActions({
           <button
             onClick={() => setDeclining(!declining)}
             disabled={busy}
-            className="border border-red-900 text-red-300 hover:bg-red-950 disabled:opacity-50 px-4 py-2 rounded-2 text-sm transition-colors"
+            className="nb-button nb-button-danger"
           >
             Decline…
           </button>
@@ -133,11 +134,11 @@ export function RequestActions({
       </div>
 
       {declining && (
-        <div className="border border-red-900 rounded-3 p-4 space-y-3">
+        <div className="border-3 border-black bg-[#fff1f1] p-4 space-y-3">
           <select
             value={declineCategory}
             onChange={(e) => setDeclineCategory(e.target.value)}
-            className="w-full bg-charcoal-900 border border-charcoal-700 rounded-2 px-3 py-2 text-sm"
+            className="nb-input"
           >
             {DECLINE_CATEGORIES.map((c) => (
               <option key={c.value} value={c.value}>
@@ -150,19 +151,19 @@ export function RequestActions({
             onChange={(e) => setDeclineReason(e.target.value)}
             rows={2}
             placeholder="Why? This feeds back into future assessments."
-            className="w-full bg-charcoal-900 border border-charcoal-700 rounded-2 px-3 py-2 text-sm placeholder-charcoal-500"
+            className="nb-input"
           />
           <button
             onClick={decline}
             disabled={busy || !declineReason.trim()}
-            className="bg-red-800 hover:bg-red-700 disabled:opacity-50 text-midnight-white px-4 py-2 rounded-2 text-sm font-medium"
+            className="nb-button nb-button-danger"
           >
             Decline request
           </button>
         </div>
       )}
 
-      {error && <p className="text-sm text-red-400">{error}</p>}
+      {error && <p className="border-3 border-black bg-[#ff9696] px-3 py-2 text-sm font-bold">{error}</p>}
     </section>
   )
 }
