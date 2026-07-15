@@ -1,5 +1,6 @@
 import type { Metadata } from 'next'
 import Link from 'next/link'
+import { PixelStudio } from './PixelStudio'
 import './globals.css'
 
 // NOTE: no next/font here — its build-time font fetch fails inside the
@@ -56,7 +57,8 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
     <html lang="en" data-theme="neobrutalism">
       <body className="min-h-screen antialiased">
         <TopNav />
-        <main className="nb-page max-w-7xl mx-auto px-4 py-8">{children}</main>
+        <main className="nb-page relative z-10 max-w-7xl mx-auto px-4 py-8">{children}</main>
+        <PixelStudio />
       </body>
     </html>
   )
