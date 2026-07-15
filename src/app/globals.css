@@ -180,23 +180,14 @@ a[href] {
 
 .nb-pixel-mote {
   position: absolute;
-  width: 18px;
-  height: 18px;
+  width: var(--pixel-size);
+  height: var(--pixel-size);
   border: 2px solid var(--nb-ink);
-  background: var(--nb-pink);
+  background: var(--pixel-color);
   box-shadow: 3px 3px 0 rgba(23, 23, 23, 0.22);
   opacity: 0.55;
-  animation: nb-pixel-drift 7s steps(4, end) infinite alternate;
+  animation: nb-pixel-drift var(--pixel-duration) steps(4, end) infinite alternate;
 }
-
-.nb-pixel-mote:nth-child(1) { top: 18%; left: 5%; --pixel-x: 24px; --pixel-y: -24px; background: var(--nb-pink); }
-.nb-pixel-mote:nth-child(2) { top: 68%; left: 7%; --pixel-x: -18px; --pixel-y: 24px; background: var(--nb-blue); animation-duration: 9s; }
-.nb-pixel-mote:nth-child(3) { top: 28%; left: 90%; --pixel-x: -24px; --pixel-y: 18px; background: var(--nb-green); animation-duration: 6s; }
-.nb-pixel-mote:nth-child(4) { top: 75%; left: 88%; --pixel-x: 18px; --pixel-y: -24px; background: var(--nb-purple); animation-duration: 8s; }
-.nb-pixel-mote:nth-child(5) { top: 49%; left: 2%; --pixel-x: 18px; --pixel-y: 18px; background: var(--nb-orange); animation-duration: 10s; }
-.nb-pixel-mote:nth-child(6) { top: 11%; left: 73%; --pixel-x: -18px; --pixel-y: 24px; background: var(--nb-yellow); animation-duration: 7.5s; }
-.nb-pixel-mote:nth-child(7) { top: 88%; left: 70%; --pixel-x: 24px; --pixel-y: -18px; background: var(--nb-red); animation-duration: 11s; }
-.nb-pixel-mote:nth-child(8) { top: 42%; left: 96%; --pixel-x: -18px; --pixel-y: -18px; background: var(--nb-blue); animation-duration: 6.5s; }
 
 @keyframes nb-pixel-drift {
   from { transform: translate(0, 0); }
