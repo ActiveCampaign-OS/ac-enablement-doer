@@ -6,11 +6,14 @@ import { ASSESSMENT_SYSTEM_PROMPT, buildUserMessage } from './prompts'
 import { DELIVERABLE_AUTONOMY } from '@/lib/state-machine'
 import { notifySlack, requestBlocks } from '@/lib/slack'
 import { logOutcome } from '@/lib/outcomes'
-import type { DeliverableType } from '@prisma/client'
+import { Prisma, type DeliverableType } from '@prisma/client'
 
 const MAX_ASSESSMENT_VERSIONS = 4
 const MAX_USER_CHARS = 60_000
 const DEFAULT_MODEL = 'claude-sonnet-4-6'
+const SPINE_STAGES = ['Design', 'Motivate', 'Train', 'Plan', 'Reinforce', 'Measure'] as const
+
+type SpineStage = (typeof SPINE_STAGES)[number]
 
 interface Recommendation {
   deliverableType: string
@@ -25,6 +28,25 @@ interface AssessmentOutput {
   spineSteps: Array<{ step: string; summary: string }>
   recommendations: Recommendation[]
   scopingQuestions: string[]
+  currentStage?: string
+  workingNotes?: unknown
+  madeMaterialProgress?: boolean
+  showWorkingNotes?: boolean
+  nextDecision?: unknown
+}
+
+interface WorkingNotes {
+  businessGoal: string | null
+  targetBehavior: string | null
+  likelyGapTypes: string[]
+  keyEvidence: string[]
+  openRisks: string[]
+  nextDecision: string | null
+}
+
+interface NextDecision {
+  question: string
+  options: Array<{ label: string; description: string; recommended: boolean }>
 }
 
 /**
@@ -88,6 +110,11 @@ export async function runAssessment(requestId: string, source: 'system' | 'cron'
             version: prior.version,
             summary: JSON.stringify({
               sufficient: prior.sufficient,
+              currentStage: prior.currentStage,
+              workingNotes: prior.workingNotes,
+              nextDecision: prior.nextDecision,
+              nonProgressTurns: prior.nonProgressTurns,
+              madeMaterialProgress: prior.madeMaterialProgress,
               recommendations: prior.recommendations,
               scopingQuestions: prior.scopingQuestions,
             }),
@@ -143,6 +170,14 @@ export async function runAssessment(requestId: string, source: 'system' | 'cron'
         : 'OTHER') as DeliverableType,
     }))
     const primary = recommendations[0] ?? null
+    const currentStage = normalizeStage(parsed.currentStage)
+    const nextDecision = normalizeNextDecision(parsed.nextDecision)
+    const workingNotes = normalizeWorkingNotes(parsed.workingNotes, nextDecision)
+    const madeMaterialProgress = priorVersion === 0 || parsed.madeMaterialProgress === true
+    const nonProgressTurns = madeMaterialProgress ? 0 : (prior?.nonProgressTurns ?? 0) + 1
+    const showWorkingNotes = priorVersion === 0 || parsed.showWorkingNotes === true
+    const shouldRefocus = !parsed.sufficient && nonProgressTurns >= 2
+    const scopingQuestions = (parsed.scopingQuestions ?? []).map(String).filter(Boolean).slice(0, 1)
 
     const assessment = await prisma.assessment.create({
       data: {
@@ -154,7 +189,13 @@ export async function runAssessment(requestId: string, source: 'system' | 'cron'
         missingInputs: parsed.missingInputs ?? [],
         spineSteps: parsed.spineSteps ?? [],
         recommendations: recommendations as unknown as object[],
-        scopingQuestions: parsed.scopingQuestions ?? [],
+        scopingQuestions,
+        currentStage,
+        workingNotes: workingNotes as unknown as Prisma.InputJsonValue,
+        nextDecision: nextDecision ? (nextDecision as unknown as Prisma.InputJsonValue) : Prisma.DbNull,
+        madeMaterialProgress,
+        nonProgressTurns,
+        showWorkingNotes,
         rawExcerpt: raw.slice(0, 2000),
       },
     })
@@ -179,7 +220,11 @@ export async function runAssessment(requestId: string, source: 'system' | 'cron'
             create: {
               role: 'AGENT',
               author: 'agent',
-              body: formatRecommendationMessage(recommendations),
+              body: formatRecommendationMessage(recommendations, {
+                currentStage,
+                workingNotes,
+                showWorkingNotes,
+              }),
               metadata: { assessmentId: assessment.id },
             },
           },
@@ -193,7 +238,6 @@ export async function runAssessment(requestId: string, source: 'system' | 'cron'
         )
       )
     } else {
-      const questions = (parsed.scopingQuestions ?? []).slice(0, 4)
       await prisma.trainingRequest.update({
         where: { id: requestId },
         data: {
@@ -211,11 +255,15 @@ export async function runAssessment(requestId: string, source: 'system' | 'cron'
             create: {
               role: 'AGENT',
               author: 'agent',
-              body:
-                `I need a little more before I can recommend the right deliverable` +
-                (parsed.missingInputs?.length ? ` (missing: ${parsed.missingInputs.join('; ')})` : '') +
-                `:\n\n` +
-                questions.map((q, i) => `${i + 1}. ${q}`).join('\n'),
+              body: formatScopingMessage({
+                missingInputs: parsed.missingInputs ?? [],
+                questions: scopingQuestions,
+                currentStage,
+                workingNotes,
+                nextDecision,
+                showWorkingNotes,
+                shouldRefocus,
+              }),
               metadata: { assessmentId: assessment.id },
             },
           },
@@ -270,15 +318,112 @@ export async function runAssessment(requestId: string, source: 'system' | 'cron'
   }
 }
 
-function formatRecommendationMessage(recs: Recommendation[]): string {
+function normalizeStage(value: unknown): SpineStage {
+  return SPINE_STAGES.includes(value as SpineStage) ? (value as SpineStage) : 'Design'
+}
+
+function normalizeText(value: unknown): string | null {
+  const text = typeof value === 'string' ? value.trim() : ''
+  return text || null
+}
+
+function normalizeTextList(value: unknown, limit: number): string[] {
+  if (!Array.isArray(value)) return []
+  return value.map((item) => String(item).trim()).filter(Boolean).slice(0, limit)
+}
+
+function normalizeNextDecision(value: unknown): NextDecision | null {
+  if (!value || typeof value !== 'object') return null
+  const candidate = value as Record<string, unknown>
+  const question = normalizeText(candidate.question)
+  if (!question) return null
+  const options = Array.isArray(candidate.options)
+    ? candidate.options
+        .map((option) => {
+          if (!option || typeof option !== 'object') return null
+          const fields = option as Record<string, unknown>
+          const label = normalizeText(fields.label)
+          if (!label) return null
+          return {
+            label,
+            description: normalizeText(fields.description) ?? '',
+            recommended: fields.recommended === true,
+          }
+        })
+        .filter((option): option is NextDecision['options'][number] => Boolean(option))
+        .slice(0, 3)
+    : []
+  return { question, options }
+}
+
+function normalizeWorkingNotes(value: unknown, nextDecision: NextDecision | null): WorkingNotes {
+  const candidate = value && typeof value === 'object' ? (value as Record<string, unknown>) : {}
+  return {
+    businessGoal: normalizeText(candidate.businessGoal),
+    targetBehavior: normalizeText(candidate.targetBehavior),
+    likelyGapTypes: normalizeTextList(candidate.likelyGapTypes, 6),
+    keyEvidence: normalizeTextList(candidate.keyEvidence, 7),
+    openRisks: normalizeTextList(candidate.openRisks, 5),
+    nextDecision: normalizeText(candidate.nextDecision) ?? nextDecision?.question ?? null,
+  }
+}
+
+function formatWorkingNotes(currentStage: SpineStage, notes: WorkingNotes): string {
+  const lines = [`**Working notes**`, `- Current stage: ${currentStage}`]
+  if (notes.businessGoal) lines.push(`- Business goal: ${notes.businessGoal}`)
+  if (notes.targetBehavior) lines.push(`- Target behavior: ${notes.targetBehavior}`)
+  if (notes.likelyGapTypes.length) lines.push(`- Likely gaps: ${notes.likelyGapTypes.join(', ')}`)
+  if (notes.keyEvidence.length) lines.push(`- Key evidence: ${notes.keyEvidence.join(' · ')}`)
+  if (notes.openRisks.length) lines.push(`- Open risks: ${notes.openRisks.join(' · ')}`)
+  if (notes.nextDecision) lines.push(`- Next decision: ${notes.nextDecision}`)
+  return lines.join('\n')
+}
+
+function formatDecisionOptions(nextDecision: NextDecision | null): string {
+  if (!nextDecision?.options.length) return ''
+  return `\n\n${nextDecision.options
+    .map((option, index) => {
+      const recommendation = option.recommended ? ' **Recommended**' : ''
+      return `${index + 1}. **${option.label}**${recommendation}${option.description ? ` — ${option.description}` : ''}`
+    })
+    .join('\n')}`
+}
+
+function formatScopingMessage(input: {
+  missingInputs: string[]
+  questions: string[]
+  currentStage: SpineStage
+  workingNotes: WorkingNotes
+  nextDecision: NextDecision | null
+  showWorkingNotes: boolean
+  shouldRefocus: boolean
+}): string {
+  const question =
+    input.nextDecision?.question ??
+    input.questions[0] ??
+    'What specific observable behavior should the audience perform differently, and how will you know it happened?'
+  const parts: string[] = []
+  if (input.shouldRefocus) {
+    parts.push('It seems we may be circling without adding new signal. Would it help to refocus on the next decision?')
+  }
+  if (input.showWorkingNotes) parts.push(formatWorkingNotes(input.currentStage, input.workingNotes))
+  const missing = input.missingInputs.length ? ` (gap: ${input.missingInputs[0]})` : ''
+  parts.push(`**Next decision needed**${missing}\n${question}${formatDecisionOptions(input.nextDecision)}`)
+  return parts.join('\n\n')
+}
+
+function formatRecommendationMessage(
+  recs: Recommendation[],
+  context: { currentStage: SpineStage; workingNotes: WorkingNotes; showWorkingNotes: boolean }
+): string {
   const lines = recs.map(
     (r, i) =>
       `${i === 0 ? '**Recommendation**' : '**Alternative**'}: ${r.deliverableType} (${r.confidence}% confident, ~${r.effort?.hours ?? '?'}h ${r.effort?.size ?? ''})\n${r.rationale}`
   )
-  return (
-    lines.join('\n\n') +
-    `\n\nIf this looks right, hit **Confirm** and I'll take it from there. If not, reply here with what's off.`
-  )
+  const parts = context.showWorkingNotes ? [formatWorkingNotes(context.currentStage, context.workingNotes)] : []
+  parts.push(lines.join('\n\n'))
+  parts.push('**Next decision needed**\nIf this looks right, hit **Confirm** and I\'ll take it from there. If not, reply with what is off.')
+  return parts.join('\n\n')
 }
 
 async function transition(

@@ -16,6 +16,15 @@ interface Recommendation {
   effort?: { size?: string; hours?: number }
 }
 
+interface WorkingNotes {
+  businessGoal?: string | null
+  targetBehavior?: string | null
+  likelyGapTypes?: string[]
+  keyEvidence?: string[]
+  openRisks?: string[]
+  nextDecision?: string | null
+}
+
 function RequestBriefItem({ label, children }: { label: string; children: ReactNode }) {
   return (
     <div className="space-y-1">
@@ -44,6 +53,7 @@ export default async function RequestDetailPage({
 
   const latest = request.assessments[0] ?? null
   const recs = (latest?.recommendations ?? []) as unknown as Recommendation[]
+  const workingNotes = (latest?.workingNotes ?? null) as WorkingNotes | null
   const effectiveType = (request.confirmedType ?? request.recommendedType) as DeliverableType | null
   const handoff = effectiveType ? DELIVERABLE_AUTONOMY[effectiveType] === 'HUMAN_HANDOFF' : false
 
@@ -128,9 +138,37 @@ export default async function RequestDetailPage({
           <div className="flex items-center justify-between">
             <h2 className="nb-section-title">Assessment v{latest.version}</h2>
             <span className="text-xs font-bold text-[#625d53]">
-              {latest.model} · spine {latest.frameworkVersion}
+              {latest.currentStage ? `${latest.currentStage} · ` : ''}{latest.model} · spine {latest.frameworkVersion}
             </span>
           </div>
+
+          {latest.showWorkingNotes && workingNotes && (
+            <section className="nb-panel-soft p-4 space-y-3">
+              <h3 className="nb-section-title">Working notes</h3>
+              <dl className="space-y-3 text-sm">
+                {workingNotes.businessGoal && <RequestBriefItem label="Business goal">{workingNotes.businessGoal}</RequestBriefItem>}
+                {workingNotes.targetBehavior && <RequestBriefItem label="Target behavior">{workingNotes.targetBehavior}</RequestBriefItem>}
+                {(workingNotes.likelyGapTypes?.length ?? 0) > 0 && (
+                  <RequestBriefItem label="Likely gap types">{workingNotes.likelyGapTypes?.join(', ')}</RequestBriefItem>
+                )}
+                {(workingNotes.keyEvidence?.length ?? 0) > 0 && (
+                  <RequestBriefItem label="Key evidence">
+                    <ul className="list-disc space-y-1 pl-5">
+                      {workingNotes.keyEvidence?.map((item) => <li key={item}>{item}</li>)}
+                    </ul>
+                  </RequestBriefItem>
+                )}
+                {(workingNotes.openRisks?.length ?? 0) > 0 && (
+                  <RequestBriefItem label="Open risks">
+                    <ul className="list-disc space-y-1 pl-5">
+                      {workingNotes.openRisks?.map((item) => <li key={item}>{item}</li>)}
+                    </ul>
+                  </RequestBriefItem>
+                )}
+                {workingNotes.nextDecision && <RequestBriefItem label="Next decision">{workingNotes.nextDecision}</RequestBriefItem>}
+              </dl>
+            </section>
+          )}
 
           {recs.length > 0 ? (
             <div className="space-y-3">

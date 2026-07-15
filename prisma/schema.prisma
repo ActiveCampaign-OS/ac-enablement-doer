@@ -92,6 +92,12 @@ model Assessment {
   spineSteps       Json // [{ step, summary }] per Spine stage
   recommendations  Json // [{ deliverableType, rationale, confidence, effort: {size,hours} }]
   scopingQuestions String[]
+  currentStage     String? // Design, Motivate, Train, Plan, Reinforce, or Measure
+  workingNotes     Json? // compact copilot memory for the current assessment pass
+  nextDecision     Json? // { question, options[] } when a stakeholder decision is open
+  madeMaterialProgress Boolean @default(false)
+  nonProgressTurns Int @default(0)
+  showWorkingNotes Boolean @default(false)
   rawExcerpt       String?         @db.Text // first ~2k chars of raw LLM output for debugging
   error            String?         @db.Text // non-null if the pass failed
   createdAt        DateTime        @default(now())
