@@ -9,6 +9,14 @@ import type { RequestStatus } from '@prisma/client'
 export const dynamic = 'force-dynamic'
 export const maxDuration = 300
 
+function extractLinks(sourceMaterials: string, suppliedLinks: unknown): string[] {
+  const embeddedLinks = sourceMaterials.match(/https?:\/\/[^\s<>()]+/g) ?? []
+  const links = Array.isArray(suppliedLinks) ? suppliedLinks.map(String) : []
+  return Array.from(
+    new Set([...links, ...embeddedLinks].map((link) => link.replace(/[.,;!?]+$/, '')).filter(Boolean))
+  )
+}
+
 // GET /api/requests?mine=1|all=1&status=…
 export async function GET(req: NextRequest) {
   const prisma = getPrisma()
@@ -39,8 +47,35 @@ export async function POST(req: NextRequest) {
   const body = await req.json().catch(() => ({}))
   const title = String(body.title ?? '').trim()
   const description = String(body.description ?? '').trim()
-  if (!title || !description) {
-    return NextResponse.json({ error: 'title and description are required' }, { status: 400 })
+  const audience = String(body.audience ?? '').trim()
+  const businessGoal = String(body.businessGoal ?? '').trim()
+  const urgency = String(body.urgency ?? '').trim()
+  const stakeholders = String(body.stakeholders ?? '').trim()
+  const sourceMaterials = String(body.sourceMaterials ?? '').trim()
+  const accountability = String(body.accountability ?? '').trim()
+  const missingFields = [
+    { value: title, label: 'request title' },
+    { value: description, label: 'situation, challenge, or initiative' },
+    { value: businessGoal, label: 'outcomes and success measures' },
+    { value: audience, label: 'required audience' },
+    { value: urgency, label: 'desired timeline' },
+    { value: stakeholders, label: 'key stakeholders' },
+    { value: sourceMaterials, label: 'existing resources or documentation' },
+    { value: accountability, label: 'next steps and accountability' },
+  ]
+    .filter((field) => !field.value)
+    .map((field) => field.label)
+  if (missingFields.length) {
+    return NextResponse.json({ error: `Required: ${missingFields.join(', ')}` }, { status: 400 })
+  }
+  if (title.length > 250) {
+    return NextResponse.json({ error: 'request title must be 250 characters or fewer' }, { status: 400 })
+  }
+
+  const dueDateValue = String(body.dueDate ?? '').trim()
+  const dueDate = dueDateValue ? new Date(dueDateValue) : null
+  if (dueDate && Number.isNaN(dueDate.getTime())) {
+    return NextResponse.json({ error: 'due date must be a valid date' }, { status: 400 })
   }
 
   const email = getActorEmail(req) ?? String(body.requesterEmail ?? '').trim().toLowerCase()
@@ -54,13 +89,14 @@ export async function POST(req: NextRequest) {
       title,
       description,
       requesterEmail: email,
-      audience: body.audience ? String(body.audience) : null,
-      businessGoal: body.businessGoal ? String(body.businessGoal) : null,
-      urgency: body.urgency ? String(body.urgency) : null,
-      dueDate: body.dueDate ? new Date(body.dueDate) : null,
-      contentLinks: Array.isArray(body.contentLinks)
-        ? body.contentLinks.map(String).filter(Boolean)
-        : [],
+      audience,
+      businessGoal,
+      urgency,
+      stakeholders,
+      sourceMaterials,
+      accountability,
+      dueDate,
+      contentLinks: extractLinks(sourceMaterials, body.contentLinks),
       actions: {
         create: { action: 'submitted', actor: email, source: 'ui' },
       },

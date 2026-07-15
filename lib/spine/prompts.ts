@@ -52,6 +52,9 @@ export function buildUserMessage(input: {
   audience: string | null
   businessGoal: string | null
   urgency: string | null
+  stakeholders: string | null
+  sourceMaterials: string | null
+  accountability: string | null
   dueDate: Date | null
   contentLinks: string[]
   thread: Array<{ role: string; author: string; body: string }>
@@ -63,6 +66,9 @@ export function buildUserMessage(input: {
   if (input.audience) parts.push(`Audience: ${input.audience}`)
   if (input.businessGoal) parts.push(`Stated business goal: ${input.businessGoal}`)
   if (input.urgency) parts.push(`Urgency: ${input.urgency}`)
+  if (input.stakeholders) parts.push(`Key stakeholders and roles:\n${input.stakeholders}`)
+  if (input.sourceMaterials) parts.push(`Existing resources or documentation:\n${input.sourceMaterials}`)
+  if (input.accountability) parts.push(`Post-training accountability and reinforcement:\n${input.accountability}`)
   if (input.dueDate) parts.push(`Due date: ${input.dueDate.toISOString().slice(0, 10)}`)
   if (input.contentLinks.length) parts.push(`Source material links (not fetched — note in scoping if content is needed):\n${input.contentLinks.map((l) => `- ${l}`).join('\n')}`)
 

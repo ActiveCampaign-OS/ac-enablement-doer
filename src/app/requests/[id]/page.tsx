@@ -5,6 +5,7 @@ import { RequestActions } from './RequestActions'
 import { ThreadPanel } from './ThreadPanel'
 import { DELIVERABLE_AUTONOMY } from '@/lib/state-machine'
 import type { DeliverableType } from '@prisma/client'
+import type { ReactNode } from 'react'
 
 export const dynamic = 'force-dynamic'
 
@@ -13,6 +14,15 @@ interface Recommendation {
   rationale: string
   confidence: number
   effort?: { size?: string; hours?: number }
+}
+
+function RequestBriefItem({ label, children }: { label: string; children: ReactNode }) {
+  return (
+    <div className="space-y-1">
+      <dt className="font-black uppercase text-xs tracking-wide text-[#625d53]">{label}</dt>
+      <dd className="font-semibold whitespace-pre-wrap">{children}</dd>
+    </div>
+  )
 }
 
 export default async function RequestDetailPage({
@@ -51,28 +61,67 @@ export default async function RequestDetailPage({
         </div>
         <p className="border-y-3 border-black py-3 text-xs font-bold uppercase tracking-wide text-[#5f594f]">
           {request.requesterEmail}
-          {request.audience ? ` · for ${request.audience}` : ''}
           {request.dueDate ? ` · due ${request.dueDate.toISOString().slice(0, 10)}` : ''}
           {request.assignedTo ? ` · assigned to ${request.assignedTo}` : ''}
         </p>
         <p className="font-semibold whitespace-pre-wrap">{request.description}</p>
-        {request.businessGoal && (
-          <p className="text-sm font-semibold">
-            <span className="font-black uppercase">Business goal:</span> {request.businessGoal}
-          </p>
-        )}
-        {request.contentLinks.length > 0 && (
-          <ul className="nb-panel-soft p-4 text-sm space-y-1">
-            {request.contentLinks.map((l) => (
-              <li key={l}>
-                <a href={l} className="font-bold underline decoration-2 underline-offset-2 break-all" target="_blank" rel="noreferrer">
-                  {l}
-                </a>
-              </li>
-            ))}
-          </ul>
-        )}
       </header>
+
+      <section className="nb-panel p-5 sm:p-6 space-y-5">
+        <h2 className="nb-section-title">Request brief</h2>
+        <dl className="space-y-5">
+          <RequestBriefItem label="Situation, challenge, or initiative">
+            {request.description}
+          </RequestBriefItem>
+          {request.businessGoal && (
+            <RequestBriefItem label="Outcomes and success measures">
+              {request.businessGoal}
+            </RequestBriefItem>
+          )}
+          {request.audience && (
+            <RequestBriefItem label="Required audience">{request.audience}</RequestBriefItem>
+          )}
+          {request.urgency && (
+            <RequestBriefItem label="Desired timeline">{request.urgency}</RequestBriefItem>
+          )}
+          {request.dueDate && (
+            <RequestBriefItem label="Hard deadline">
+              {request.dueDate.toISOString().slice(0, 10)}
+            </RequestBriefItem>
+          )}
+          {request.stakeholders && (
+            <RequestBriefItem label="Key stakeholders">{request.stakeholders}</RequestBriefItem>
+          )}
+          {request.sourceMaterials && (
+            <RequestBriefItem label="Existing resources and documentation">
+              {request.sourceMaterials}
+            </RequestBriefItem>
+          )}
+          {request.contentLinks.length > 0 && (
+            <RequestBriefItem label="Resource links">
+              <ul className="space-y-1">
+                {request.contentLinks.map((link) => (
+                  <li key={link}>
+                    <a
+                      href={link}
+                      className="font-bold underline decoration-2 underline-offset-2 break-all"
+                      target="_blank"
+                      rel="noreferrer"
+                    >
+                      {link}
+                    </a>
+                  </li>
+                ))}
+              </ul>
+            </RequestBriefItem>
+          )}
+          {request.accountability && (
+            <RequestBriefItem label="Next steps and accountability">
+              {request.accountability}
+            </RequestBriefItem>
+          )}
+        </dl>
+      </section>
 
       {latest && !latest.error && (
         <section className="nb-panel p-5 sm:p-6 space-y-5">

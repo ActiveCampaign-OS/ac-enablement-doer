@@ -7,7 +7,6 @@ export default function NewRequestPage() {
   const router = useRouter()
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const [links, setLinks] = useState<string[]>([''])
 
   async function onSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault()
@@ -17,11 +16,13 @@ export default function NewRequestPage() {
     const payload = {
       title: fd.get('title'),
       description: fd.get('description'),
-      audience: fd.get('audience') || null,
-      businessGoal: fd.get('businessGoal') || null,
-      urgency: fd.get('urgency') || null,
+      audience: fd.get('audience'),
+      businessGoal: fd.get('businessGoal'),
+      urgency: fd.get('urgency'),
       dueDate: fd.get('dueDate') || null,
-      contentLinks: links.map((l) => l.trim()).filter(Boolean),
+      stakeholders: fd.get('stakeholders'),
+      sourceMaterials: fd.get('sourceMaterials'),
+      accountability: fd.get('accountability'),
     }
     const res = await fetch('/api/requests', {
       method: 'POST',
@@ -47,85 +48,148 @@ export default function NewRequestPage() {
         <span className="nb-kicker">Intake desk</span>
         <h1 className="text-4xl font-black uppercase tracking-[-0.08em] leading-none">New training request</h1>
         <p className="max-w-xl text-sm font-semibold leading-6 text-[#5f594f]">
-          Give the agent the change you want to see. More context up front means fewer follow-up
-          questions later.
+          Use the same information you would provide in Global Enablement Programming&apos;s Help
+          Center request. More context up front means fewer follow-up questions later.
         </p>
       </div>
 
       <form onSubmit={onSubmit} className="nb-panel p-5 sm:p-7 space-y-5">
         <div>
           <label className={label} htmlFor="title">
-            Title <span className="text-red-400">*</span>
+            Request / Project Title <span className="text-red-400">*</span>
           </label>
-          <input id="title" name="title" required maxLength={200} className={input} placeholder="e.g. Reactivation Agent — AE talk track" />
+          <p className="mb-2 text-xs font-semibold text-[#625d53]">
+            Brief descriptive title — less than 250 characters.
+          </p>
+          <input
+            id="title"
+            name="title"
+            required
+            maxLength={250}
+            className={input}
+            placeholder="e.g. Reactivation Agent — AE talk track"
+          />
         </div>
         <div>
           <label className={label} htmlFor="description">
-            What needs training, and why now? <span className="text-red-400">*</span>
+            What situation, challenge, or initiative are you requesting enablement support for?{' '}
+            <span className="text-red-400">*</span>
           </label>
+          <p className="mb-2 text-xs font-semibold text-[#625d53]">
+            Describe what is happening and the gap or challenge enablement will help address.
+          </p>
           <textarea
             id="description"
             name="description"
             required
             rows={5}
             className={input}
-            placeholder="Describe the change you want to see. What are people doing today, and what should they be doing instead?"
+            placeholder="Include the initiative, product, process, or update and the current gap."
           />
         </div>
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-          <div>
-            <label className={label} htmlFor="audience">Audience</label>
-            <input id="audience" name="audience" className={input} placeholder="e.g. AEs, CS managers" />
-          </div>
-          <div>
-            <label className={label} htmlFor="urgency">Urgency</label>
-            <input id="urgency" name="urgency" className={input} placeholder="e.g. before the June launch" />
-          </div>
-        </div>
         <div>
-          <label className={label} htmlFor="businessGoal">Business goal it rolls up to</label>
-          <input
+          <label className={label} htmlFor="businessGoal">
+            What outcomes are you aiming to achieve, and how will you measure success?{' '}
+            <span className="text-red-400">*</span>
+          </label>
+          <p className="mb-2 text-xs font-semibold text-[#625d53]">
+            Include expected adoption, behavior changes, KPIs, CSAT/NPS, quality metrics, or error reduction.
+          </p>
+          <textarea
             id="businessGoal"
             name="businessGoal"
+            required
+            rows={4}
             className={input}
-            placeholder="e.g. lift reactivation-sourced pipeline; cut handling time on X"
+            placeholder="e.g. Lift adoption to 80% and reduce errors by 25% within one quarter."
           />
         </div>
         <div>
-          <label className={label} htmlFor="dueDate">Due date</label>
+          <div>
+            <label className={label} htmlFor="audience">
+              Who is the required audience? <span className="text-red-400">*</span>
+            </label>
+            <p className="mb-2 text-xs font-semibold text-[#625d53]">
+              Specify the team(s) or role(s) and whether completion is required or recommended.
+            </p>
+            <textarea
+              id="audience"
+              name="audience"
+              required
+              rows={3}
+              className={input}
+              placeholder="e.g. Customer Success CSMs; completion is required before the launch."
+            />
+          </div>
+        </div>
+        <div>
+          <label className={label} htmlFor="urgency">
+            What is your desired timeline? <span className="text-red-400">*</span>
+          </label>
+          <p className="mb-2 text-xs font-semibold text-[#625d53]">
+            Note the target launch, hard deadlines, and dependencies.
+          </p>
+          <textarea
+            id="urgency"
+            name="urgency"
+            required
+            rows={3}
+            className={input}
+            placeholder="e.g. Launch by September 15; dependent on final product documentation by August 22."
+          />
+        </div>
+        <div>
+          <label className={label} htmlFor="dueDate">Hard deadline, if known</label>
           <input id="dueDate" name="dueDate" type="date" className={input} />
         </div>
         <div>
-          <label className={label}>Source material links</label>
-          {links.map((l, i) => (
-            <div key={i} className="flex gap-2 mb-2">
-              <input
-                value={l}
-                onChange={(e) => setLinks(links.map((x, j) => (j === i ? e.target.value : x)))}
-                className={input}
-                placeholder="Confluence / Google Doc / recording URL"
-              />
-              {i === links.length - 1 ? (
-                <button
-                  type="button"
-                  onClick={() => setLinks([...links, ''])}
-                  className="nb-button nb-button-secondary shrink-0 px-3"
-                  aria-label="Add link"
-                >
-                  +
-                </button>
-              ) : (
-                <button
-                  type="button"
-                  onClick={() => setLinks(links.filter((_, j) => j !== i))}
-                  className="nb-button nb-button-danger shrink-0 px-3"
-                  aria-label="Remove link"
-                >
-                  −
-                </button>
-              )}
-            </div>
-          ))}
+          <label className={label} htmlFor="stakeholders">
+            Who are the key stakeholders? <span className="text-red-400">*</span>
+          </label>
+          <p className="mb-2 text-xs font-semibold text-[#625d53]">
+            List advocates, approvers, reviewers, and subject matter experts with their roles.
+          </p>
+          <textarea
+            id="stakeholders"
+            name="stakeholders"
+            required
+            rows={4}
+            className={input}
+            placeholder="Advocate: … | Approver: … | Reviewer: … | Subject matter expert: …"
+          />
+        </div>
+        <div>
+          <label className={label} htmlFor="sourceMaterials">
+            What existing resources or documentation should be used to build this enablement?{' '}
+            <span className="text-red-400">*</span>
+          </label>
+          <p className="mb-2 text-xs font-semibold text-[#625d53]">
+            Include decks, process docs, guides, recordings, or in-progress materials and their readiness dates.
+          </p>
+          <textarea
+            id="sourceMaterials"
+            name="sourceMaterials"
+            required
+            rows={5}
+            className={input}
+            placeholder="Paste links or describe the materials and when any in-progress content will be ready."
+          />
+        </div>
+        <div>
+          <label className={label} htmlFor="accountability">
+            Next steps and accountability <span className="text-red-400">*</span>
+          </label>
+          <p className="mb-2 text-xs font-semibold text-[#625d53]">
+            Explain learner expectations and how managers or leaders will reinforce success through coaching, reporting, dashboards, or follow-ups.
+          </p>
+          <textarea
+            id="accountability"
+            name="accountability"
+            required
+            rows={4}
+            className={input}
+            placeholder="e.g. Managers review adoption dashboards weekly and coach missed behaviors in 1:1s."
+          />
         </div>
 
         {error && <p className="border-3 border-black bg-[#ff9696] px-3 py-2 text-sm font-bold">{error}</p>}

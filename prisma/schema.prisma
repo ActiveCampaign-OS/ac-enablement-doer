@@ -54,6 +54,9 @@ model TrainingRequest {
   audience        String? // who is being trained
   businessGoal    String?          @db.Text // outcome the stakeholder wants
   urgency         String? // freeform ("this quarter", "before June launch")
+  stakeholders    String?          @db.Text // advocates, approvers, reviewers, and SMEs
+  sourceMaterials String?          @db.Text // available or in-progress build inputs
+  accountability  String?          @db.Text // post-training reinforcement and expectations
   dueDate         DateTime?
   contentLinks    String[] // source material URLs (Confluence, GDocs, …)
   status          RequestStatus    @default(SUBMITTED)
