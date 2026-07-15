@@ -94,7 +94,7 @@ export async function createJiraIssueForRequest(requestId: string): Promise<void
   if (!request || request.jiraIssueKey) return
 
   const claim = await prisma.trainingRequest.updateMany({
-    where: { id: requestId, jiraIssueKey: null, jiraSyncStatus: 'PENDING' },
+    where: { id: requestId, jiraIssueKey: null, jiraSyncStatus: 'QUEUED' },
     data: { jiraSyncStatus: 'CREATING', jiraSyncError: null },
   })
   if (claim.count !== 1) return

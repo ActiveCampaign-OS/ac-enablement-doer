@@ -3,6 +3,7 @@ import { getPrisma } from '@/lib/prisma'
 import { StatusChip } from '../StatusChip'
 import { RequestActions } from './RequestActions'
 import { ThreadPanel } from './ThreadPanel'
+import { JiraWorkItem } from './JiraWorkItem'
 import { DELIVERABLE_AUTONOMY } from '@/lib/state-machine'
 import type { DeliverableType } from '@prisma/client'
 import type { ReactNode } from 'react'
@@ -75,6 +76,17 @@ export default async function RequestDetailPage({
           {request.assignedTo ? ` · assigned to ${request.assignedTo}` : ''}
         </p>
         <p className="font-semibold whitespace-pre-wrap">{request.description}</p>
+        {(request.jiraIssueKey || request.jiraSyncStatus !== 'PENDING' || request.jiraSyncError) && (
+          <JiraWorkItem
+            requestId={request.id}
+            initialState={{
+              jiraIssueKey: request.jiraIssueKey,
+              jiraIssueUrl: request.jiraIssueUrl,
+              jiraSyncStatus: request.jiraSyncStatus,
+              jiraSyncError: request.jiraSyncError,
+            }}
+          />
+        )}
       </header>
 
       <section className="nb-panel p-5 sm:p-6 space-y-5">
@@ -123,23 +135,6 @@ export default async function RequestDetailPage({
                   </li>
                 ))}
               </ul>
-            </RequestBriefItem>
-          )}
-          {request.jiraIssueKey && (
-            <RequestBriefItem label="Jira work item">
-              <a
-                href={request.jiraIssueUrl ?? `https://activecampaign.atlassian.net/browse/${request.jiraIssueKey}`}
-                className="font-bold underline decoration-2 underline-offset-2"
-                target="_blank"
-                rel="noreferrer"
-              >
-                {request.jiraIssueKey}
-              </a>
-            </RequestBriefItem>
-          )}
-          {request.jiraSyncError && (
-            <RequestBriefItem label="Jira creation status">
-              {request.jiraSyncStatus.replaceAll('_', ' ')} — {request.jiraSyncError}
             </RequestBriefItem>
           )}
           {request.accountability && (

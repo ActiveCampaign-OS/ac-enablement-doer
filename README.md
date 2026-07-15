@@ -44,6 +44,9 @@ DECLINED (requires category + reason — feeds future assessments as negative ex
      project `GEP` through the ACOS Jira connection. The deploy files the required
      `jira:create-issue` access request; an ACOS Data admin must approve it before the first
      ticket can be created. `JIRA_PROJECT_KEY` and `JIRA_ISSUE_TYPE` can override the defaults.
+     The current ACOS Jira catalog does not expose issue-update, watcher, or request-participant
+     writes, so follow-up answers remain in the linked request until those managed endpoints are
+     added and approved.
 3. **Spine content** — already embedded from the 2026-07-14 Confluence export. When the page
    changes, either enable the refresh cron (above) or re-paste into `lib/spine/framework.ts`
    and bump `SPINE_VERSION`.

@@ -98,6 +98,7 @@ export async function POST(req: NextRequest) {
       accountability,
       dueDate,
       contentLinks: extractLinks(sourceMaterials, body.contentLinks),
+      jiraSyncStatus: 'QUEUED',
       actions: {
         create: { action: 'submitted', actor: email, source: 'ui' },
       },

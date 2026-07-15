@@ -346,6 +346,37 @@ a[href] {
   box-shadow: var(--nb-shadow-sm);
 }
 
+.nb-jira-work-item {
+  display: inline-flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  width: fit-content;
+  max-width: 100%;
+  border: 3px solid var(--nb-ink);
+  padding: 7px 9px;
+  font-size: 12px;
+  font-weight: 900;
+  line-height: 1.2;
+  box-shadow: 3px 3px 0 var(--nb-ink);
+}
+
+.nb-jira-work-item a {
+  border: 2px solid var(--nb-ink);
+  background: var(--nb-white);
+  padding: 3px 5px;
+  text-decoration: none;
+}
+
+.nb-jira-work-item a:hover,
+.nb-jira-work-item a:focus-visible {
+  background: var(--nb-yellow);
+}
+
+.nb-jira-work-item-created { background: var(--nb-green); }
+.nb-jira-work-item-creating { background: var(--nb-blue); }
+.nb-jira-work-item-error { background: var(--nb-red); }
+
 .nb-hero {
   position: relative;
   overflow: hidden;
