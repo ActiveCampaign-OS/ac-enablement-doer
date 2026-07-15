@@ -59,6 +59,10 @@ model TrainingRequest {
   accountability  String?          @db.Text // post-training reinforcement and expectations
   dueDate         DateTime?
   contentLinks    String[] // source material URLs (Confluence, GDocs, …)
+  jiraIssueKey    String?          @unique
+  jiraIssueUrl    String?
+  jiraSyncStatus  String           @default("PENDING")
+  jiraSyncError   String?          @db.Text
   status          RequestStatus    @default(SUBMITTED)
   recommendedType DeliverableType? // denormalized primary recommendation
   autonomy        Autonomy? // derived server-side from recommendedType

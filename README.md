@@ -40,6 +40,10 @@ DECLINED (requires category + reason — feeds future assessments as negative ex
    - `SPINE_CONFLUENCE_PAGE_ID` (optional) — page id of the Spine doc to enable the weekly
      refresh cron. Also needs the `confluence` vendor appAccess grant (check
      `/api/diagnostics/confluence`).
+   - **Jira creation** — submissions create a `Global Enablement Programming Request` in
+     project `GEP` through the ACOS Jira connection. The deploy files the required
+     `jira:create-issue` access request; an ACOS Data admin must approve it before the first
+     ticket can be created. `JIRA_PROJECT_KEY` and `JIRA_ISSUE_TYPE` can override the defaults.
 3. **Spine content** — already embedded from the 2026-07-14 Confluence export. When the page
    changes, either enable the refresh cron (above) or re-paste into `lib/spine/framework.ts`
    and bump `SPINE_VERSION`.

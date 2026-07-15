@@ -9,7 +9,10 @@
     "/api/diagnostics/outcomes",
     "/api/diagnostics/spine"
   ],
-  "acosData": { "vendors": ["confluence", "slack"] },
+  "acosData": {
+    "vendors": ["confluence", "slack", "jira"],
+    "write": ["jira:create-issue"]
+  },
   "cron": [
     { "schedule": "0 14 * * 1-5", "path": "/api/cron/nudge", "method": "POST", "description": "Weekday stale-request nudges (9am CT)" },
     { "schedule": "0 12 * * 1", "path": "/api/cron/refresh-spine", "method": "POST", "description": "Weekly Spine framework refresh from Confluence (no-ops until page id + appAccess configured)" }

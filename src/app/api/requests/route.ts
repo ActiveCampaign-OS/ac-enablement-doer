@@ -4,6 +4,7 @@ import { getPrisma } from '@/lib/prisma'
 import { getActorEmail, checkWrite, writeForbidden } from '@/lib/permissions'
 import { runAssessment } from '@/lib/spine/assess'
 import { notifySlack, requestBlocks } from '@/lib/slack'
+import { createJiraIssueForRequest } from '@/lib/jira'
 import type { RequestStatus } from '@prisma/client'
 
 export const dynamic = 'force-dynamic'
@@ -104,9 +105,10 @@ export async function POST(req: NextRequest) {
   })
 
   after(async () => {
-    await notifySlack(
-      requestBlocks('New training request', request, `Submitted by ${email}`)
-    )
+    await Promise.allSettled([
+      notifySlack(requestBlocks('New training request', request, `Submitted by ${email}`)),
+      createJiraIssueForRequest(request.id),
+    ])
     await runAssessment(request.id, 'system')
   })
 

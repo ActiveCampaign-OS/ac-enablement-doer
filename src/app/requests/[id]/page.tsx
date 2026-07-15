@@ -125,6 +125,23 @@ export default async function RequestDetailPage({
               </ul>
             </RequestBriefItem>
           )}
+          {request.jiraIssueKey && (
+            <RequestBriefItem label="Jira work item">
+              <a
+                href={request.jiraIssueUrl ?? `https://activecampaign.atlassian.net/browse/${request.jiraIssueKey}`}
+                className="font-bold underline decoration-2 underline-offset-2"
+                target="_blank"
+                rel="noreferrer"
+              >
+                {request.jiraIssueKey}
+              </a>
+            </RequestBriefItem>
+          )}
+          {request.jiraSyncError && (
+            <RequestBriefItem label="Jira creation status">
+              {request.jiraSyncStatus.replaceAll('_', ' ')} — {request.jiraSyncError}
+            </RequestBriefItem>
+          )}
           {request.accountability && (
             <RequestBriefItem label="Next steps and accountability">
               {request.accountability}
