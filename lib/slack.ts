@@ -1,7 +1,4 @@
-// Slack notifications via a plain incoming webhook (SLACK_WEBHOOK_URL secret).
-// Best-effort by design: never throws, never blocks the request path.
-// Deep links go back into the app via NEXT_PUBLIC_APP_URL.
-
+import { callAcos } from './acos-client'
 import type { TrainingRequest } from '@prisma/client'
 
 type Block = Record<string, unknown>
@@ -45,22 +42,17 @@ export function requestBlocks(
 }
 
 export async function notifySlack(blocks: Block[], text?: string): Promise<boolean> {
-  const webhook = process.env.SLACK_WEBHOOK_URL
-  if (!webhook) return false
+  const channel = process.env.SLACK_CHANNEL_ID
+  if (!channel) return false
   try {
-    const res = await fetch(webhook, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ text: text ?? 'Enablement Do-er update', blocks }),
-      signal: AbortSignal.timeout(8000),
+    await callAcos('slack', 'post-message', {
+      channel,
+      text: text ?? 'Enablement Do-er update',
+      blocks,
     })
-    if (!res.ok) {
-      console.error(`[slack] webhook → ${res.status}: ${(await res.text()).slice(0, 200)}`)
-      return false
-    }
     return true
   } catch (err) {
-    console.error(`[slack] webhook threw: ${err instanceof Error ? err.message : err}`)
+    console.error(`[slack] post-message failed: ${err instanceof Error ? err.message : err}`)
     return false
   }
 }

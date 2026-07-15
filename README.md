@@ -31,9 +31,10 @@ DECLINED (requires category + reason — feeds future assessments as negative ex
 1. **Outcome slugs** — register in Spark → Settings → Outcomes (or every emit 422s):
    `training-request-assessed`, `training-request-confirmed`, `training-handoff-created`,
    `training-asset-delivered`.
-2. **Secrets** (app Settings → Secrets):
-   - `SLACK_WEBHOOK_URL` — ops channel incoming webhook (submitted/recommended/confirmed/
-     handoff/nudge notifications). App works without it; notifications just no-op.
+2. **Configuration** (app Settings → Secrets):
+   - `SLACK_CHANNEL_ID` — ops channel ID for submitted/recommended/confirmed/handoff/nudge
+     notifications. Slack is accessed through the auto-approved ACOS connection; do not create
+     or set an incoming webhook. App works without a channel ID; notifications just no-op.
    - `OPERATOR_ALLOWLIST` — comma-separated operator emails. **Unset = everyone is an
      operator** (opt-in enforcement, same pattern as `WRITE_ALLOWLIST`).
    - `SPINE_CONFLUENCE_PAGE_ID` (optional) — page id of the Spine doc to enable the weekly
