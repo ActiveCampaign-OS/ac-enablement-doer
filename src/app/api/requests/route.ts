@@ -5,7 +5,8 @@ import { getActorEmail, checkWrite, writeForbidden } from '@/lib/permissions'
 import { runAssessment } from '@/lib/spine/assess'
 import { notifySlack, requestBlocks } from '@/lib/slack'
 import { createJiraIssueForRequest } from '@/lib/jira'
-import type { RequestStatus } from '@prisma/client'
+import { parsePixelDoodle } from '@/lib/pixel-doodle'
+import type { Prisma, RequestStatus } from '@prisma/client'
 
 export const dynamic = 'force-dynamic'
 export const maxDuration = 300
@@ -54,6 +55,7 @@ export async function POST(req: NextRequest) {
   const stakeholders = String(body.stakeholders ?? '').trim()
   const sourceMaterials = String(body.sourceMaterials ?? '').trim()
   const accountability = String(body.accountability ?? '').trim()
+  const pixelDoodle = parsePixelDoodle(body.pixelDoodle)
   const missingFields = [
     { value: title, label: 'request title' },
     { value: description, label: 'situation, challenge, or initiative' },
@@ -98,6 +100,7 @@ export async function POST(req: NextRequest) {
       accountability,
       dueDate,
       contentLinks: extractLinks(sourceMaterials, body.contentLinks),
+      ...(pixelDoodle ? { pixelDoodle: pixelDoodle as unknown as Prisma.InputJsonValue } : {}),
       jiraSyncStatus: 'QUEUED',
       actions: {
         create: { action: 'submitted', actor: email, source: 'ui' },

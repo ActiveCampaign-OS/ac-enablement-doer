@@ -2,11 +2,14 @@
 
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
+import { PixelDoodlePad } from './PixelDoodlePad'
+import type { PixelDoodle } from '@/lib/pixel-doodle'
 
 export default function NewRequestPage() {
   const router = useRouter()
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [pixelDoodle, setPixelDoodle] = useState<PixelDoodle | null>(null)
 
   async function onSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault()
@@ -23,6 +26,7 @@ export default function NewRequestPage() {
       stakeholders: fd.get('stakeholders'),
       sourceMaterials: fd.get('sourceMaterials'),
       accountability: fd.get('accountability'),
+      pixelDoodle,
     }
     const res = await fetch('/api/requests', {
       method: 'POST',
@@ -191,6 +195,8 @@ export default function NewRequestPage() {
             placeholder="e.g. Managers review adoption dashboards weekly and coach missed behaviors in 1:1s."
           />
         </div>
+
+        <PixelDoodlePad onChange={setPixelDoodle} />
 
         {error && <p className="border-3 border-black bg-[#ff9696] px-3 py-2 text-sm font-bold">{error}</p>}
 

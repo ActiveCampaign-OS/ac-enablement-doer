@@ -377,6 +377,98 @@ a[href] {
 .nb-jira-work-item-creating { background: var(--nb-blue); }
 .nb-jira-work-item-error { background: var(--nb-red); }
 
+.nb-doodle-pad {
+  border: 3px solid var(--nb-ink);
+  background: color-mix(in srgb, var(--nb-white) 82%, var(--nb-pink));
+  padding: 18px;
+  box-shadow: var(--nb-shadow-sm);
+}
+
+.nb-doodle-heading {
+  display: flex;
+  align-items: start;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 14px;
+}
+
+.nb-doodle-prompt,
+.nb-doodle-clear {
+  border: 2px solid var(--nb-ink);
+  background: var(--nb-white);
+  padding: 5px 7px;
+  font-size: 10px;
+  font-weight: 900;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  box-shadow: 2px 2px 0 var(--nb-ink);
+}
+
+.nb-doodle-prompt:hover,
+.nb-doodle-clear:hover {
+  background: var(--nb-yellow);
+  transform: translate(1px, 1px);
+  box-shadow: 1px 1px 0 var(--nb-ink);
+}
+
+.nb-doodle-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  margin-bottom: 12px;
+}
+
+.nb-doodle-color {
+  width: 23px;
+  height: 23px;
+  border: 2px solid var(--nb-ink);
+  background: var(--doodle-color);
+  box-shadow: 2px 2px 0 var(--nb-ink);
+}
+
+.nb-doodle-color[aria-pressed="true"] {
+  transform: translate(2px, 2px);
+  box-shadow: none;
+}
+
+.nb-doodle-clear { margin-left: auto; }
+
+.nb-doodle-grid {
+  display: grid;
+  grid-template-columns: repeat(var(--doodle-columns), minmax(0, 1fr));
+  overflow: hidden;
+  border: 2px solid var(--nb-ink);
+  background: var(--nb-ink);
+  gap: 2px;
+  touch-action: none;
+}
+
+.nb-doodle-cell {
+  aspect-ratio: 1;
+  min-height: 14px;
+  border: 0;
+  background: var(--nb-paper);
+}
+
+button.nb-doodle-cell {
+  transition: background-color 80ms steps(2, end), box-shadow 80ms steps(2, end);
+}
+
+.nb-doodle-cell[aria-pressed="true"],
+.nb-doodle-cell[data-filled="true"] {
+  background: var(--doodle-fill);
+}
+
+button.nb-doodle-cell:hover,
+button.nb-doodle-cell:focus-visible {
+  outline: 0;
+  box-shadow: inset 0 0 0 3px var(--nb-ink);
+}
+
+.nb-doodle-grid-record {
+  width: min(100%, 360px);
+}
+
 .nb-hero {
   position: relative;
   overflow: hidden;

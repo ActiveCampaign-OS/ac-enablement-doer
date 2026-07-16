@@ -4,6 +4,7 @@ import { StatusChip } from '../StatusChip'
 import { RequestActions } from './RequestActions'
 import { ThreadPanel } from './ThreadPanel'
 import { JiraWorkItem } from './JiraWorkItem'
+import { RequestDoodle } from './RequestDoodle'
 import { DELIVERABLE_AUTONOMY } from '@/lib/state-machine'
 import type { DeliverableType } from '@prisma/client'
 import type { ReactNode } from 'react'
@@ -88,6 +89,8 @@ export default async function RequestDetailPage({
           />
         )}
       </header>
+
+      <RequestDoodle value={request.pixelDoodle} />
 
       <section className="nb-panel p-5 sm:p-6 space-y-5">
         <h2 className="nb-section-title">Request brief</h2>
