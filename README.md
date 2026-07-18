@@ -8,15 +8,17 @@ goal, observable see/do behaviours, gap diagnosis), recommends the smallest deli
 moves the behaviour, and runs a confirm loop. Rise courses and Solidroad simulations always
 route to a human build queue (Solidroad has no public API; Rise is gated by policy).
 
-**V1 scope:** intake → assessment → recommendation → confirm/decline → operator handoff
-queue. **Phase 2 (planned):** autonomous generation of job aids, manager guides, and PPTX
-decks; agent-written build specs for Solidroad/Rise handoffs.
+**Current scope:** intake → assessment → recommendation → durable asset build → operator
+review → delivery. Job aids and manager guides are generated autonomously as review-ready
+Markdown drafts. Decks are generated as complete slide storyboards with an in-app preview and
+downloadable JSON source. Rise courses and Solidroad simulations remain explicit human handoffs.
 
 ## Lifecycle
 
 ```
-SUBMITTED → ASSESSING ⇄ NEEDS_INFO → RECOMMENDED → CONFIRMED            (autonomous types)
-                                                  ↘ HANDOFF_REQUIRED → APPROVED → DELIVERED
+SUBMITTED → ASSESSING ⇄ NEEDS_INFO → RECOMMENDED → GENERATING → DRAFT_READY → APPROVED → DELIVERED
+                                                 ↘ HANDOFF_REQUIRED ───────────────────────→ APPROVED → DELIVERED
+GENERATING → CONFIRMED (build failure; operator may retry)
 DECLINED (requires category + reason — feeds future assessments as negative examples)
 ```
 
@@ -25,6 +27,9 @@ DECLINED (requires category + reason — feeds future assessments as negative ex
 - Autonomy (`AUTONOMOUS` vs `HUMAN_HANDOFF`) is derived **server-side** from the deliverable
   type — never from LLM output.
 - Assessment versions are capped at 4 per request, then the ops channel is asked to step in.
+- Asset builds are durable `AssetBuild` records. The `asset-builder` Spark worker claims them
+  atomically, renews a heartbeat, requeues stale work, and writes private artifacts to the
+  Spark-provisioned S3 bucket. Redis and request-bound background work are not used for builds.
 
 ## Launch checklist (admin actions)
 
@@ -47,6 +52,10 @@ DECLINED (requires category + reason — feeds future assessments as negative ex
      The current ACOS Jira catalog does not expose issue-update, watcher, or request-participant
      writes, so follow-up answers remain in the linked request until those managed endpoints are
      added and approved.
+   - **Asset storage** — no secret or AWS credentials are required. The
+     `@aws-sdk/client-s3` dependency makes Spark provision a private bucket and inject
+     `S3_BUCKET`; the app uses its pod IAM role. Artifacts are only downloadable by the
+     requester or an operator through the SSO-gated app route.
 3. **Spine content** — already embedded from the 2026-07-14 Confluence export. When the page
    changes, either enable the refresh cron (above) or re-paste into `lib/spine/framework.ts`
    and bump `SPINE_VERSION`.
@@ -84,3 +93,11 @@ in-cluster and the headers are omitted.
 - The assessment engine (`lib/spine/assess.ts`) sends the framework as a cached system block
   (`cache_control: ephemeral`), parses with a tolerant JSON parser, and coerces any off-menu
   deliverable type to `OTHER`.
+- Confirmation of an autonomous type creates a `QUEUED` asset build in the same transaction that
+  changes the request to `GENERATING`. The worker snapshots form inputs, stakeholder messages,
+  the latest assessment, and successfully retrieved explicit Confluence links before drafting.
+  Other links are never treated as fetched evidence.
+- A deck is intentionally delivered as a review-ready slide storyboard until a Spark-deployable
+  editable PPTX renderer is available. The Codex-only `@oai/artifact-tool` package is not
+  installable in the Spark image, so the app does not pretend to export a PowerPoint file it
+  cannot render and validate in production.

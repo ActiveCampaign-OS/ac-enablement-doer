@@ -5,14 +5,14 @@ import { getActorEmail, checkWrite, writeForbidden, checkOperator, operatorForbi
 import { STATUS_TRANSITIONS, DELIVERABLE_AUTONOMY, canTransition } from '@/lib/state-machine'
 import { notifySlack, requestBlocks } from '@/lib/slack'
 import { logOutcome } from '@/lib/outcomes'
-import type { RequestStatus } from '@prisma/client'
+import type { DeliverableType, RequestStatus } from '@prisma/client'
 
 export const dynamic = 'force-dynamic'
 
 const VALID_STATUSES = Object.keys(STATUS_TRANSITIONS) as RequestStatus[]
 
 // Statuses only an operator may set (approval / delivery of handoffs).
-const OPERATOR_STATUSES: RequestStatus[] = ['APPROVED', 'DELIVERED', 'GENERATING', 'DRAFT_READY']
+const OPERATOR_STATUSES: RequestStatus[] = ['APPROVED', 'DELIVERED']
 
 // POST /api/requests/[id]/action  { action: <status or custom>, metadata? }
 export async function POST(
@@ -32,6 +32,76 @@ export async function POST(
   const request = await prisma.trainingRequest.findUnique({ where: { id } })
   if (!request) return NextResponse.json({ error: 'Not found' }, { status: 404 })
 
+  if (action === 'RETRY_ASSET_BUILD' || action === 'REGENERATE_ASSET_BUILD') {
+    const op = checkOperator(req)
+    if (!op.ok) return operatorForbidden(op.email)
+    const buildId = String(body.buildId ?? '')
+    const build = await prisma.assetBuild.findFirst({
+      where: { id: buildId, requestId: id },
+      orderBy: { revision: 'desc' },
+    })
+    if (!build) return NextResponse.json({ error: 'Asset build not found' }, { status: 404 })
+
+    if (action === 'RETRY_ASSET_BUILD') {
+      if (build.status !== 'FAILED' || request.status !== 'CONFIRMED') {
+        return NextResponse.json({ error: 'Only a failed, confirmed build can be retried' }, { status: 422 })
+      }
+      await prisma.$transaction(async (tx) => {
+        await tx.assetBuild.update({
+          where: { id: build.id },
+          data: { status: 'QUEUED', error: null, workerId: null, startedAt: null, heartbeatAt: null, completedAt: null },
+        })
+        await tx.trainingRequest.update({
+          where: { id },
+          data: {
+            status: 'GENERATING',
+            lastActivityAt: new Date(),
+            actions: {
+              create: {
+                action: 'asset_build_retried',
+                actor,
+                source: 'ui',
+                metadata: { buildId: build.id, revision: build.revision },
+              },
+            },
+          },
+        })
+      })
+      return NextResponse.json({ ok: true, buildId: build.id, status: 'QUEUED' })
+    }
+
+    if (build.status !== 'DRAFT_READY' || request.status !== 'DRAFT_READY') {
+      return NextResponse.json({ error: 'Only a review-ready build can be regenerated' }, { status: 422 })
+    }
+    const created = await prisma.$transaction(async (tx) => {
+      const next = await tx.assetBuild.create({
+        data: {
+          requestId: id,
+          deliverableType: build.deliverableType,
+          revision: build.revision + 1,
+          status: 'QUEUED',
+        },
+      })
+      await tx.trainingRequest.update({
+        where: { id },
+        data: {
+          status: 'GENERATING',
+          lastActivityAt: new Date(),
+          actions: {
+            create: {
+              action: 'asset_build_regenerated',
+              actor,
+              source: 'ui',
+              metadata: { fromBuildId: build.id, buildId: next.id, revision: next.revision },
+            },
+          },
+        },
+      })
+      return next
+    })
+    return NextResponse.json({ ok: true, buildId: created.id, status: 'QUEUED' })
+  }
+
   if (VALID_STATUSES.includes(action as RequestStatus)) {
     let nextStatus = action as RequestStatus
 
@@ -44,6 +114,13 @@ export async function POST(
           error:
             'Declines require a reason. Use PATCH /api/requests/[id] with decline: { category, reason }.',
         },
+        { status: 400 }
+      )
+    }
+
+    if (nextStatus === 'GENERATING' || nextStatus === 'DRAFT_READY') {
+      return NextResponse.json(
+        { error: `${nextStatus} is managed by the asset builder and cannot be set directly.` },
         { status: 400 }
       )
     }
@@ -66,8 +143,10 @@ export async function POST(
     // the operator queue.
     const extraData: Record<string, unknown> = {}
     let handoffCreated = false
+    let assetBuildQueued = false
+    let confirmedType: DeliverableType | null = null
     if (nextStatus === 'CONFIRMED') {
-      const confirmedType = request.confirmedType ?? request.recommendedType
+      confirmedType = request.confirmedType ?? request.recommendedType
       if (!confirmedType) {
         return NextResponse.json(
           { error: 'Cannot confirm: no recommended deliverable type on this request yet' },
@@ -80,25 +159,78 @@ export async function POST(
       if (autonomy === 'HUMAN_HANDOFF') {
         nextStatus = 'HANDOFF_REQUIRED' // CONFIRMED → HANDOFF_REQUIRED collapsed into one step
         handoffCreated = true
+      } else {
+        nextStatus = 'GENERATING'
+        assetBuildQueued = true
       }
     }
 
-    const updated = await prisma.trainingRequest.update({
-      where: { id },
-      data: {
-        status: nextStatus,
-        lastActivityAt: new Date(),
-        ...extraData,
-        actions: {
-          create: {
-            action: `status_changed_to_${nextStatus}`,
-            actor,
-            source: 'ui',
-            metadata: { previousStatus: request.status, requested: action, ...body.metadata },
+    const updated = assetBuildQueued && confirmedType
+      ? await prisma.$transaction(async (tx) => {
+          const claimed = await tx.trainingRequest.updateMany({
+            where: { id, status: request.status },
+            data: { status: 'GENERATING', lastActivityAt: new Date(), ...extraData },
+          })
+          if (claimed.count !== 1) return null
+          const previousBuild = await tx.assetBuild.findFirst({
+            where: { requestId: id, deliverableType: confirmedType },
+            orderBy: { revision: 'desc' },
+            select: { revision: true },
+          })
+          const build = await tx.assetBuild.create({
+            data: {
+              requestId: id,
+              deliverableType: confirmedType,
+              revision: (previousBuild?.revision ?? 0) + 1,
+              status: 'QUEUED',
+            },
+          })
+          return tx.trainingRequest.update({
+            where: { id },
+            data: {
+              actions: {
+                create: {
+                  action: 'asset_build_queued',
+                  actor,
+                  source: 'ui',
+                  metadata: { previousStatus: request.status, requested: action, buildId: build.id, ...body.metadata },
+                },
+              },
+            },
+          })
+        })
+      : await prisma.trainingRequest.update({
+          where: { id },
+          data: {
+            status: nextStatus,
+            lastActivityAt: new Date(),
+            ...extraData,
+            actions: {
+              create: {
+                action: `status_changed_to_${nextStatus}`,
+                actor,
+                source: 'ui',
+                metadata: { previousStatus: request.status, requested: action, ...body.metadata },
+              },
+            },
           },
-        },
-      },
-    })
+        })
+    if (!updated) {
+      return NextResponse.json({ error: 'Request changed before the build could be queued. Refresh and try again.' }, { status: 409 })
+    }
+
+    if (nextStatus === 'APPROVED' && request.status === 'DRAFT_READY') {
+      await prisma.assetBuild.updateMany({
+        where: { requestId: id, status: 'DRAFT_READY' },
+        data: { status: 'APPROVED' },
+      })
+    }
+    if (nextStatus === 'DELIVERED' && request.status === 'APPROVED') {
+      await prisma.assetBuild.updateMany({
+        where: { requestId: id, status: 'APPROVED' },
+        data: { status: 'DELIVERED' },
+      })
+    }
 
     after(async () => {
       if (handoffCreated) {
@@ -109,9 +241,9 @@ export async function POST(
           requestId: id,
           deliverableType: updated.confirmedType,
         })
-      } else if (nextStatus === 'CONFIRMED') {
+      } else if (assetBuildQueued) {
         await notifySlack(
-          requestBlocks('Request confirmed', updated, `${updated.confirmedType} confirmed by ${actor ?? 'stakeholder'}`)
+          requestBlocks('Asset build queued', updated, `${updated.confirmedType} confirmed by ${actor ?? 'stakeholder'} — worker will create the draft`)
         )
         await logOutcome('training-request-confirmed', {
           requestId: id,

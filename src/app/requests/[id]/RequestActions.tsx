@@ -95,6 +95,7 @@ export function RequestActions({
       primary: true,
     },
     { label: 'Approve handoff', action: 'APPROVED', show: status === 'HANDOFF_REQUIRED' && isOperator, primary: true },
+    { label: 'Approve draft', action: 'APPROVED', show: status === 'DRAFT_READY' && isOperator, primary: true },
     { label: 'Mark delivered', action: 'DELIVERED', show: status === 'APPROVED' && isOperator, primary: true },
     { label: 'Archive', action: 'ARCHIVED', show: ['DELIVERED', 'CONFIRMED', 'DECLINED'].includes(status) },
     { label: 'Reopen', action: 'SUBMITTED', show: ['DECLINED', 'ARCHIVED'].includes(status) },

@@ -6,16 +6,19 @@
     "dev": "next dev",
     "build": "next build",
     "start": "prisma migrate deploy && next start",
+    "worker:assets": "tsx workers/asset-worker.ts",
     "postinstall": "prisma generate"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.36.0",
+    "@aws-sdk/client-s3": "^3.0.0",
     "@prisma/client": "^6.0.0",
     "marked": "^14.1.4",
     "next": "^16.2.6",
     "prisma": "^6.0.0",
     "react": "^19.0.0",
-    "react-dom": "^19.0.0"
+    "react-dom": "^19.0.0",
+    "tsx": "^4.0.0"
   },
   "overrides": {
     "postcss": "^8.5.14",
@@ -28,7 +31,6 @@
     "@types/react": "^19.0.0",
     "@types/react-dom": "^19.0.0",
     "tailwindcss": "^4.3.0",
-    "tsx": "^4.0.0",
     "typescript": "^5.0.0"
   }
 }

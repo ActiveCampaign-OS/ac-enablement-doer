@@ -3,6 +3,9 @@
   "egress": "unrestricted",
   "resources": { "size": "medium" },
   "scaling": { "replicas": 1, "autoscaling": true, "minReplicas": 1, "maxReplicas": 3 },
+  "workers": [
+    { "name": "asset-builder", "command": "npm run worker:assets", "replicas": 1, "resources": { "size": "medium" } }
+  ],
   "webhooks": [
     "/api/diagnostics/acos",
     "/api/diagnostics/confluence",

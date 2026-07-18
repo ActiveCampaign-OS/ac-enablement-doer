@@ -9,10 +9,10 @@ export const dynamic = 'force-dynamic'
 // Operator triage order — handoffs and stuck loops first.
 const GROUPS: Array<{ title: string; statuses: RequestStatus[]; note?: string }> = [
   { title: 'Human build needed', statuses: ['HANDOFF_REQUIRED'], note: 'Confirmed Solidroad/Rise/other — pull the spec, build, approve.' },
-  { title: 'Approved — in build', statuses: ['APPROVED'] },
+  { title: 'Approved — ready to deliver', statuses: ['APPROVED'] },
   { title: 'Waiting on stakeholder', statuses: ['NEEDS_INFO', 'RECOMMENDED'] },
-  { title: 'In flight', statuses: ['SUBMITTED', 'ASSESSING', 'GENERATING', 'DRAFT_READY'] },
-  { title: 'Confirmed (autonomous, phase 2 builds these)', statuses: ['CONFIRMED'] },
+  { title: 'Asset builder', statuses: ['GENERATING', 'DRAFT_READY', 'CONFIRMED'] },
+  { title: 'In flight', statuses: ['SUBMITTED', 'ASSESSING'] },
 ]
 
 export default async function QueuePage() {
