@@ -30,6 +30,9 @@ DECLINED (requires category + reason — feeds future assessments as negative ex
 - Asset builds are durable `AssetBuild` records. The `asset-builder` Spark worker claims them
   atomically, renews a heartbeat, requeues stale work, and writes private artifacts to the
   Spark-provisioned S3 bucket. Redis and request-bound background work are not used for builds.
+- The worker is bundled into Next.js's standalone production image during `npm run build` and
+  starts with Node directly. On a first deployment it waits for Prisma migrations instead of
+  crash-looping while the web process finishes database setup.
 
 ## Launch checklist (admin actions)
 

@@ -4,4 +4,5 @@ node_modules/
 .env.local
 *.env
 dist/
+/asset-worker.cjs
 tsconfig.tsbuildinfo

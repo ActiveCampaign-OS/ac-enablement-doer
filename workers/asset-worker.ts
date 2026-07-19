@@ -9,6 +9,7 @@ const POLL_MS = 2_000
 const HEARTBEAT_MS = 20_000
 const RECOVERY_MS = 60_000
 const STALE_AFTER_MS = 5 * 60 * 1000
+const DATABASE_RETRY_MS = 5_000
 const workerId = `asset-builder-${process.pid}`
 let draining = false
 let activeBuildId: string | null = null
@@ -231,11 +232,25 @@ async function shutdown(): Promise<void> {
   process.exit(0)
 }
 
+async function waitForDatabase(): Promise<void> {
+  while (!draining) {
+    try {
+      await recoverStaleBuilds()
+      return
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error)
+      console.warn(`[asset-worker] waiting for database readiness: ${message}`)
+      await sleep(DATABASE_RETRY_MS)
+    }
+  }
+}
+
 process.on('SIGTERM', () => { void shutdown() })
 process.on('SIGINT', () => { void shutdown() })
 
 async function main(): Promise<void> {
-  await recoverStaleBuilds()
+  await waitForDatabase()
+  if (draining) return
   let lastRecovery = Date.now()
   while (!draining) {
     if (Date.now() - lastRecovery >= RECOVERY_MS) {
