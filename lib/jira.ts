@@ -1,5 +1,5 @@
 import type { TrainingRequest } from '@prisma/client'
-import { AcosError, callAcos } from './acos-client'
+import { AcosError, callAcos, listVendors } from './acos-client'
 import { getPrisma } from './prisma'
 
 const JIRA_BASE_URL = 'https://activecampaign.atlassian.net'
@@ -10,20 +10,16 @@ const MAX_DESCRIPTION_LENGTH = 7500
 interface JiraCreateIssueResponse {
   id?: string
   key?: string
+  issueKey?: string
+  issue_key?: string
   self?: string
+  url?: string
   issue?: {
     id?: string
     key?: string
+    issueKey?: string
     self?: string
   }
-}
-
-type AdfNode = {
-  type: string
-  version?: number
-  attrs?: Record<string, unknown>
-  content?: AdfNode[]
-  text?: string
 }
 
 function appUrl(): string {
@@ -34,15 +30,7 @@ function truncate(text: string, maxLength: number): string {
   return text.length <= maxLength ? text : `${text.slice(0, maxLength - 1)}…`
 }
 
-function textNode(text: string): AdfNode {
-  return { type: 'text', text }
-}
-
-function paragraph(text: string): AdfNode {
-  return { type: 'paragraph', content: [textNode(truncate(text, MAX_DESCRIPTION_LENGTH))] }
-}
-
-function descriptionDocument(request: TrainingRequest): AdfNode {
+function descriptionText(request: TrainingRequest): string {
   const entries: Array<[string, string | null | undefined]> = [
     ['Submitted by', request.requesterEmail],
     ['Situation, challenge, or initiative', request.description],
@@ -57,24 +45,16 @@ function descriptionDocument(request: TrainingRequest): AdfNode {
     ['Enablement Do-er request', `${appUrl()}/requests/${request.id}`],
   ]
 
-  const content: AdfNode[] = [
-    {
-      type: 'heading',
-      attrs: { level: 2 },
-      content: [textNode('Enablement Do-er request')],
-    },
-  ]
-
+  const sections = ['Enablement Do-er request']
   for (const [label, value] of entries) {
     const trimmedValue = value?.trim()
-    if (trimmedValue) content.push(paragraph(`${label}\n${trimmedValue}`))
+    if (trimmedValue) sections.push(`${label}\n${trimmedValue}`)
   }
-
-  return { type: 'doc', version: 1, content }
+  return truncate(sections.join('\n\n'), MAX_DESCRIPTION_LENGTH)
 }
 
 function issueKeyFrom(response: JiraCreateIssueResponse): string | null {
-  const issueKey = response.key ?? response.issue?.key
+  const issueKey = response.key ?? response.issueKey ?? response.issue_key ?? response.issue?.key ?? response.issue?.issueKey
   return issueKey?.trim() || null
 }
 
@@ -86,6 +66,37 @@ function errorDetails(error: unknown): { code: string; message: string } {
 
 function requiresApproval(code: string): boolean {
   return code === 'PENDING_APPROVAL' || code === 'AUTH_PERMISSION_DENIED'
+}
+
+export interface JiraAccessCheck {
+  projectKey: string
+  issueType: string
+  acosEnv: { url: boolean; appId: boolean; apiKey: boolean }
+  jiraVendor?: { found: boolean; appAccess?: string }
+  vendorsError?: string
+}
+
+export async function checkJiraAccess(): Promise<JiraAccessCheck> {
+  const out: JiraAccessCheck = {
+    projectKey: process.env.JIRA_PROJECT_KEY?.trim() || DEFAULT_PROJECT_KEY,
+    issueType: process.env.JIRA_ISSUE_TYPE?.trim() || DEFAULT_ISSUE_TYPE,
+    acosEnv: {
+      url: !!process.env.ACOS_DATA_URL,
+      appId: !!process.env.ACOS_APP_ID,
+      apiKey: !!process.env.ACOS_API_KEY,
+    },
+  }
+  try {
+    const vendors = await listVendors()
+    const jira = vendors.find((vendor) => {
+      const record = vendor as Record<string, unknown>
+      return record.slug === 'jira' || record.vendor === 'jira' || record.name === 'jira'
+    }) as Record<string, unknown> | undefined
+    out.jiraVendor = jira ? { found: true, appAccess: typeof jira.appAccess === 'string' ? jira.appAccess : undefined } : { found: false }
+  } catch (error) {
+    out.vendorsError = error instanceof Error ? error.message : String(error)
+  }
+  return out
 }
 
 export async function createJiraIssueForRequest(requestId: string): Promise<void> {
@@ -103,11 +114,12 @@ export async function createJiraIssueForRequest(requestId: string): Promise<void
     const projectKey = process.env.JIRA_PROJECT_KEY?.trim() || DEFAULT_PROJECT_KEY
     const issueType = process.env.JIRA_ISSUE_TYPE?.trim() || DEFAULT_ISSUE_TYPE
     const { data } = await callAcos<JiraCreateIssueResponse>('jira', 'create-issue', {
+      projectKey,
+      summary: truncate(request.title, 250),
+      issueType,
+      description: descriptionText(request),
       fields: {
-        project: { key: projectKey },
-        summary: truncate(request.title, 250),
-        issuetype: { name: issueType },
-        description: descriptionDocument(request),
+        labels: ['enablement-doer'],
       },
     })
     const jiraIssueKey = issueKeyFrom(data)

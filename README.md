@@ -48,10 +48,12 @@ DECLINED (requires category + reason — feeds future assessments as negative ex
    - `SPINE_CONFLUENCE_PAGE_ID` (optional) — page id of the Spine doc to enable the weekly
      refresh cron. Also needs the `confluence` vendor appAccess grant (check
      `/api/diagnostics/confluence`).
-   - **Jira creation** — submissions create a `Global Enablement Programming Request` in
-     project `GEP` through the ACOS Jira connection. The deploy files the required
-     `jira:create-issue` access request; an ACOS Data admin must approve it before the first
-     ticket can be created. `JIRA_PROJECT_KEY` and `JIRA_ISSUE_TYPE` can override the defaults.
+  - **Jira creation** — submissions create a `Global Enablement Programming Request` in
+    project `GEP` through the ACOS Jira connection. The deploy files the required
+    `jira:create-issue` access request; an ACOS Data admin must approve it before the first
+    ticket can be created. `JIRA_PROJECT_KEY` and `JIRA_ISSUE_TYPE` can override the defaults.
+    The app sends ACOS's flat `projectKey` create contract and labels the issue
+    `enablement-doer`.
      The current ACOS Jira catalog does not expose issue-update, watcher, or request-participant
      writes, so follow-up answers remain in the linked request until those managed endpoints are
      added and approved.
@@ -82,6 +84,8 @@ in-cluster and the headers are omitted.
 ## Diagnostics (declared as hooks-bypass webhooks — curl-able without SSO)
 
 - `/api/diagnostics/acos` — env + vendor list with appAccess flags
+- `/api/diagnostics/integrations` — safe Jira + Slack readiness: ACOS env, vendor grants,
+  Jira project/issue type, and whether `SLACK_CHANNEL_ID` is configured; creates nothing
 - `/api/diagnostics/confluence` — access check; `?pageId=…` proves get-page-body + parser
 - `/api/diagnostics/outcomes` — env review; `?emit=1` fires a real test outcome
 - `/api/diagnostics/spine` — which framework copy is live (source/version/hash/size)
