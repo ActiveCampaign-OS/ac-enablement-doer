@@ -1,4 +1,4 @@
-import type { TrainingRequest } from '@prisma/client'
+import type { Assessment, AssetArtifact, AssetBuild, RequestMessage, TrainingRequest } from '@prisma/client'
 import { AcosError, callAcos, listVendors } from './acos-client'
 import { getPrisma } from './prisma'
 
@@ -29,6 +29,12 @@ interface JiraProjectResponse {
 
 type JiraAssignee = { accountId: string } | null
 
+type JiraRequest = TrainingRequest & {
+  assessments: Assessment[]
+  messages: RequestMessage[]
+  assetBuilds: Array<AssetBuild & { artifacts: AssetArtifact[] }>
+}
+
 function appUrl(): string {
   return (process.env.NEXT_PUBLIC_APP_URL || 'https://ac-enablement-doer.ac-spark.com').replace(/\/$/, '')
 }
@@ -37,7 +43,22 @@ function truncate(text: string, maxLength: number): string {
   return text.length <= maxLength ? text : `${text.slice(0, maxLength - 1)}…`
 }
 
-function descriptionText(request: TrainingRequest): string {
+function compactJson(value: unknown, maxLength: number): string {
+  if (value === null || value === undefined) return ''
+  return truncate(JSON.stringify(value, null, 2), maxLength)
+}
+
+function appendSection(sections: string[], label: string, value: string | null | undefined): void {
+  const text = value?.trim()
+  if (text) sections.push(`${label}\n${text}`)
+}
+
+function descriptionText(request: JiraRequest): string {
+  const latestAssessment = request.assessments[0] ?? null
+  const latestBuild = request.assetBuilds[0] ?? null
+  const primaryArtifact = latestBuild?.artifacts.find((artifact) => artifact.kind === 'DOCX')
+    ?? latestBuild?.artifacts.find((artifact) => artifact.kind === 'DECK_STORYBOARD')
+    ?? latestBuild?.artifacts[0]
   const entries: Array<[string, string | null | undefined]> = [
     ['Submitted by', request.requesterEmail],
     ['Situation, challenge, or initiative', request.description],
@@ -49,15 +70,79 @@ function descriptionText(request: TrainingRequest): string {
     ['Existing resources and documentation', request.sourceMaterials],
     ['Next steps and accountability', request.accountability],
     ['Resource links', request.contentLinks.join('\n')],
-    ['Enablement Do-er request', `${appUrl()}/requests/${request.id}`],
   ]
 
   const sections = ['Enablement Do-er request']
+  appendSection(
+    sections,
+    'Record',
+    [
+      `Request status: ${request.status}`,
+      request.confirmedType ? `Confirmed deliverable: ${request.confirmedType}` : null,
+      `Enablement Do-er record: ${appUrl()}/requests/${request.id}`,
+    ]
+      .filter(Boolean)
+      .join('\n')
+  )
+  if (latestBuild) {
+    appendSection(
+      sections,
+      'Delivery handoff',
+      [
+        `Build status: ${latestBuild.status} · revision ${latestBuild.revision}`,
+        latestBuild.draftTitle ? `Asset title: ${latestBuild.draftTitle}` : null,
+        latestBuild.draftSummary ?? null,
+        primaryArtifact ? `Download ${primaryArtifact.fileName}: ${appUrl()}/api/asset-builds/${primaryArtifact.id}/download` : null,
+      ]
+        .filter(Boolean)
+        .join('\n')
+    )
+    appendSection(sections, 'Draft excerpt', latestBuild.draftContent ? truncate(latestBuild.draftContent, 1_500) : null)
+  }
+
+  const intakeSections: string[] = []
   for (const [label, value] of entries) {
     const trimmedValue = value?.trim()
-    if (trimmedValue) sections.push(`${label}\n${trimmedValue}`)
+    if (trimmedValue) intakeSections.push(`${label}\n${trimmedValue}`)
   }
-  return truncate(sections.join('\n\n'), MAX_DESCRIPTION_LENGTH)
+  appendSection(sections, 'Intake', intakeSections.join('\n\n'))
+
+  if (latestAssessment) {
+    appendSection(
+      sections,
+      'Assessment',
+      [
+        latestAssessment.currentStage ? `Current stage: ${latestAssessment.currentStage}` : null,
+        `Sufficient scope: ${latestAssessment.sufficient ? 'yes' : 'no'}`,
+        latestAssessment.workingNotes ? `Working notes:\n${compactJson(latestAssessment.workingNotes, 1_400)}` : null,
+        latestAssessment.recommendations ? `Recommendations:\n${compactJson(latestAssessment.recommendations, 1_400)}` : null,
+        latestAssessment.spineSteps ? `Spine steps:\n${compactJson(latestAssessment.spineSteps, 1_400)}` : null,
+      ]
+        .filter(Boolean)
+        .join('\n\n')
+    )
+  }
+
+  if (request.messages.length) {
+    appendSection(
+      sections,
+      'Stakeholder and agent conversation',
+      request.messages
+        .map((message) => {
+          const timestamp = message.createdAt.toISOString().slice(0, 16).replace('T', ' ')
+          return `[${timestamp}] ${message.role} · ${message.author}\n${message.body}`
+        })
+        .join('\n\n')
+    )
+  }
+
+  let description = sections[0]
+  for (const section of sections.slice(1)) {
+    const remaining = MAX_DESCRIPTION_LENGTH - description.length - 2
+    if (remaining <= 0) break
+    description += `\n\n${truncate(section, remaining)}`
+  }
+  return description
 }
 
 function issueKeyFrom(response: JiraCreateIssueResponse): string | null {
@@ -90,7 +175,7 @@ async function defaultAssignee(projectKey: string): Promise<JiraAssignee> {
   return { accountId }
 }
 
-function createIssueParams(request: TrainingRequest, projectKey: string, issueType: string, assignee: JiraAssignee) {
+function createIssueParams(request: JiraRequest, projectKey: string, issueType: string, assignee: JiraAssignee) {
   return {
     projectKey,
     summary: truncate(request.title, 250),
@@ -136,7 +221,18 @@ export async function checkJiraAccess(): Promise<JiraAccessCheck> {
 
 export async function createJiraIssueForRequest(requestId: string): Promise<void> {
   const prisma = getPrisma()
-  const request = await prisma.trainingRequest.findUnique({ where: { id: requestId } })
+  const request = await prisma.trainingRequest.findUnique({
+    where: { id: requestId },
+    include: {
+      assessments: { orderBy: { version: 'desc' }, take: 1 },
+      messages: { orderBy: { createdAt: 'asc' } },
+      assetBuilds: {
+        orderBy: { revision: 'desc' },
+        take: 1,
+        include: { artifacts: { orderBy: { createdAt: 'asc' } } },
+      },
+    },
+  })
   if (!request || request.jiraIssueKey) return
 
   const claim = await prisma.trainingRequest.updateMany({

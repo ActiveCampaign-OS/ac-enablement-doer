@@ -4,7 +4,6 @@ import { getPrisma } from '@/lib/prisma'
 import { getActorEmail, checkWrite, writeForbidden } from '@/lib/permissions'
 import { runAssessment } from '@/lib/spine/assess'
 import { notifySlack, requestBlocks } from '@/lib/slack'
-import { createJiraIssueForRequest } from '@/lib/jira'
 import { parsePixelDoodle } from '@/lib/pixel-doodle'
 import type { Prisma, RequestStatus } from '@prisma/client'
 
@@ -109,10 +108,9 @@ export async function POST(req: NextRequest) {
   })
 
   after(async () => {
-    await Promise.allSettled([
-      notifySlack(requestBlocks('New training request', request, `Submitted by ${email}`)),
-      createJiraIssueForRequest(request.id),
-    ])
+    await notifySlack(requestBlocks('New training request', request, `Submitted by ${email}`)).catch((error) => {
+      console.error('[requests] new-request Slack notification failed', error)
+    })
     await runAssessment(request.id, 'system')
   })
 

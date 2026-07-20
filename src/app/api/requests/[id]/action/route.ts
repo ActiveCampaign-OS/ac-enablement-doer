@@ -268,9 +268,15 @@ export async function POST(
 
     after(async () => {
       if (handoffCreated) {
-        await notifySlack(
-          requestBlocks('Human build needed', updated, `${updated.confirmedType} confirmed by ${actor ?? 'stakeholder'} — needs an operator`)
-        )
+        const notifications = await Promise.allSettled([
+          notifySlack(
+            requestBlocks('Human build needed', updated, `${updated.confirmedType} confirmed by ${actor ?? 'stakeholder'} — needs an operator`)
+          ),
+          createJiraIssueForRequest(id),
+        ])
+        for (const notification of notifications) {
+          if (notification.status === 'rejected') console.error('[requests] handoff notification failed', notification.reason)
+        }
         await logOutcome('training-handoff-created', {
           requestId: id,
           deliverableType: updated.confirmedType,

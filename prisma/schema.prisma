@@ -52,6 +52,7 @@ enum AssetBuildStatus {
 enum AssetArtifactKind {
   MARKDOWN
   DECK_STORYBOARD
+  DOCX
 }
 
 enum MessageRole {

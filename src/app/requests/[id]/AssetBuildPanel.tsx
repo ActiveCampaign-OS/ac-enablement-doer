@@ -128,7 +128,7 @@ export function AssetBuildPanel({ requestId, build }: { requestId: string; build
       {build.deliverableType === 'DECK' && slides.length > 0 && (
         <div className="space-y-3">
           <p className="text-xs font-bold uppercase tracking-wide text-[#625d53]">
-            Presentation storyboard · editable PPTX export is pending the Spark presentation renderer
+            Presentation storyboard · editable PPTX export awaits a Spark-deployable presentation renderer
           </p>
           <div className="grid gap-3 sm:grid-cols-2">
             {slides.map((slide) => (

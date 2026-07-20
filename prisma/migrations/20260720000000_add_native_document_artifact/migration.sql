@@ -1,0 +1,1 @@
+ALTER TYPE "AssetArtifactKind" ADD VALUE IF NOT EXISTS 'DOCX';

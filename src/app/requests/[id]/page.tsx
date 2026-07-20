@@ -86,6 +86,7 @@ export default async function RequestDetailPage({
         {(request.jiraIssueKey || request.jiraSyncStatus !== 'PENDING' || request.jiraSyncError) && (
           <JiraWorkItem
             requestId={request.id}
+            requestStatus={request.status}
             initialState={{
               jiraIssueKey: request.jiraIssueKey,
               jiraIssueUrl: request.jiraIssueUrl,

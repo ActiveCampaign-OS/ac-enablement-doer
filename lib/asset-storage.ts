@@ -17,10 +17,10 @@ export async function putAssetObject(input: {
   requestId: string
   buildId: string
   fileName: string
-  content: string
+  content: string | Uint8Array
   contentType: string
 }): Promise<{ objectKey: string; sizeBytes: number; sha256: string }> {
-  const bytes = Buffer.from(input.content, 'utf8')
+  const bytes = typeof input.content === 'string' ? Buffer.from(input.content, 'utf8') : Buffer.from(input.content)
   const objectKey = `asset-builds/${input.requestId}/${input.buildId}/${input.fileName}`
   await client().send(
     new PutObjectCommand({

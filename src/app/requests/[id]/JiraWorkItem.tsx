@@ -12,7 +12,7 @@ interface JiraWorkItemState {
 }
 
 function isCreating(status: string): boolean {
-  return status === 'QUEUED' || status === 'CREATING'
+  return status === 'CREATING'
 }
 
 function issueUrl(state: JiraWorkItemState): string | null {
@@ -22,13 +22,19 @@ function issueUrl(state: JiraWorkItemState): string | null {
 
 export function JiraWorkItem({
   requestId,
+  requestStatus,
   initialState,
 }: {
   requestId: string
+  requestStatus: string
   initialState: JiraWorkItemState
 }) {
   const [state, setState] = useState(initialState)
   const [retrying, setRetrying] = useState(false)
+
+  useEffect(() => {
+    setState(initialState)
+  }, [initialState.jiraIssueKey, initialState.jiraIssueUrl, initialState.jiraSyncStatus, initialState.jiraSyncError])
 
   useEffect(() => {
     if (!isCreating(state.jiraSyncStatus)) return
@@ -75,6 +81,17 @@ export function JiraWorkItem({
     )
   }
 
+  if (state.jiraSyncStatus === 'QUEUED') {
+    const nextStep = requestStatus === 'HANDOFF_REQUIRED'
+      ? 'the handoff is being created'
+      : 'the agent has a completed draft ready for review'
+    return (
+      <p className="nb-jira-work-item nb-jira-work-item-creating" role="status">
+        Jira work item queued — it will be created when {nextStep}.
+      </p>
+    )
+  }
+
   async function retry() {
     setRetrying(true)
     try {
@@ -88,7 +105,7 @@ export function JiraWorkItem({
         setState((current) => ({ ...current, jiraSyncError: body.error ?? `Retry failed (${response.status})` }))
         return
       }
-      setState((current) => ({ ...current, jiraSyncStatus: body.jiraSyncStatus ?? 'QUEUED', jiraSyncError: null }))
+      setState((current) => ({ ...current, jiraSyncStatus: 'CREATING', jiraSyncError: null }))
     } finally {
       setRetrying(false)
     }

@@ -105,7 +105,12 @@ in-cluster and the headers are omitted.
 - Confirmation of an autonomous type creates a `QUEUED` asset build in the same transaction that
   changes the request to `GENERATING`. The worker snapshots form inputs, stakeholder messages,
   the latest assessment, and successfully retrieved explicit Confluence links before drafting.
-  Other links are never treated as fetched evidence.
+  Other links are never treated as fetched evidence. It creates the Jira issue only after the
+  draft is ready; human-only handoffs create Jira when the scope is confirmed. The initial Jira
+  description contains the intake, assessment, conversation, asset summary, and an authenticated
+  download link instead of an empty early ticket.
+- Job aids and manager guides are stored as both editable Markdown and downloadable `.docx` files.
+  Operator edits rebuild both artifacts so the native document stays current.
 - A deck is intentionally delivered as a review-ready slide storyboard until a Spark-deployable
   editable PPTX renderer is available. The Codex-only `@oai/artifact-tool` package is not
   installable in the Spark image, so the app does not pretend to export a PowerPoint file it

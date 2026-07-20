@@ -1,8 +1,9 @@
 import { getPrisma } from '../lib/prisma'
 import { Prisma } from '@prisma/client'
-import { assetBuildFileName } from '../lib/asset-builds'
+import { artifactPayloadsForDraft } from '../lib/asset-artifacts'
 import { collectSourceSnapshot, generateAssetDraft } from '../lib/asset-generator'
 import { putAssetObject } from '../lib/asset-storage'
+import { createJiraIssueForRequest } from '../lib/jira'
 import { notifySlack, requestBlocks } from '../lib/slack'
 
 const POLL_MS = 2_000
@@ -56,21 +57,6 @@ async function recoverStaleBuilds(): Promise<void> {
   if (result.count) console.warn(`[asset-worker] recovered ${result.count} stale build(s)`)
 }
 
-function artifactPayload(build: { deliverableType: string }, draft: { title: string; summary: string; markdown: string; slides: unknown[] }) {
-  if (build.deliverableType === 'DECK') {
-    return {
-      content: JSON.stringify(
-        { title: draft.title, summary: draft.summary, markdown: draft.markdown, slides: draft.slides, format: 'enablement-doer-deck-storyboard/v1' },
-        null,
-        2
-      ),
-      contentType: 'application/json; charset=utf-8',
-      kind: 'DECK_STORYBOARD' as const,
-    }
-  }
-  return { content: draft.markdown, contentType: 'text/markdown; charset=utf-8', kind: 'MARKDOWN' as const }
-}
-
 async function completeBuild(buildId: string): Promise<void> {
   const prisma = getPrisma()
   const build = await prisma.assetBuild.findUnique({
@@ -99,15 +85,19 @@ async function completeBuild(buildId: string): Promise<void> {
     messages: build.request.messages,
   })
   const draft = await generateAssetDraft({ deliverableType: build.deliverableType, sourceSnapshot })
-  const payload = artifactPayload(build, draft)
-  const fileName = assetBuildFileName(draft.title, build.deliverableType)
-  const stored = await putAssetObject({
-    requestId: build.requestId,
-    buildId: build.id,
-    fileName,
-    content: payload.content,
-    contentType: payload.contentType,
-  })
+  const payloads = await artifactPayloadsForDraft(build.deliverableType, draft)
+  const storedArtifacts = await Promise.all(
+    payloads.map(async (payload) => {
+      const stored = await putAssetObject({
+        requestId: build.requestId,
+        buildId: build.id,
+        fileName: payload.fileName,
+        content: payload.content,
+        contentType: payload.contentType,
+      })
+      return { ...payload, ...stored }
+    })
+  )
 
   const completed = await prisma.$transaction(async (tx) => {
     const marked = await tx.assetBuild.updateMany({
@@ -124,16 +114,16 @@ async function completeBuild(buildId: string): Promise<void> {
       },
     })
     if (marked.count !== 1) return false
-    await tx.assetArtifact.create({
-      data: {
+    await tx.assetArtifact.createMany({
+      data: storedArtifacts.map((artifact) => ({
         buildId: build.id,
-        kind: payload.kind,
-        fileName,
-        contentType: payload.contentType,
-        objectKey: stored.objectKey,
-        sizeBytes: stored.sizeBytes,
-        sha256: stored.sha256,
-      },
+        kind: artifact.kind,
+        fileName: artifact.fileName,
+        contentType: artifact.contentType,
+        objectKey: artifact.objectKey,
+        sizeBytes: artifact.sizeBytes,
+        sha256: artifact.sha256,
+      })),
     })
     await tx.trainingRequest.update({
       where: { id: build.requestId },
@@ -145,7 +135,11 @@ async function completeBuild(buildId: string): Promise<void> {
             action: 'asset_draft_ready',
             actor: null,
             source: 'system',
-            metadata: { buildId: build.id, deliverableType: build.deliverableType, artifact: fileName },
+            metadata: {
+              buildId: build.id,
+              deliverableType: build.deliverableType,
+              artifacts: storedArtifacts.map((artifact) => artifact.fileName),
+            },
           },
         },
         messages: {
@@ -161,9 +155,13 @@ async function completeBuild(buildId: string): Promise<void> {
     return true
   })
   if (completed) {
-    await notifySlack(
-      requestBlocks('Asset draft ready', build.request, `${build.deliverableType} draft is ready for operator review.`)
-    )
+    const notifications = await Promise.allSettled([
+      notifySlack(requestBlocks('Asset draft ready', build.request, `${build.deliverableType} draft is ready for operator review.`)),
+      createJiraIssueForRequest(build.requestId),
+    ])
+    for (const notification of notifications) {
+      if (notification.status === 'rejected') console.error('[asset-worker] completion notification failed', notification.reason)
+    }
   }
 }
 
