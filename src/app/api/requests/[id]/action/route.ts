@@ -4,6 +4,7 @@ import { getPrisma } from '@/lib/prisma'
 import { getActorEmail, checkWrite, writeForbidden, checkOperator, operatorForbidden } from '@/lib/permissions'
 import { STATUS_TRANSITIONS, DELIVERABLE_AUTONOMY, canTransition } from '@/lib/state-machine'
 import { notifySlack, requestBlocks } from '@/lib/slack'
+import { createJiraIssueForRequest } from '@/lib/jira'
 import { logOutcome } from '@/lib/outcomes'
 import type { DeliverableType, RequestStatus } from '@prisma/client'
 
@@ -31,6 +32,39 @@ export async function POST(
   const prisma = getPrisma()
   const request = await prisma.trainingRequest.findUnique({ where: { id } })
   if (!request) return NextResponse.json({ error: 'Not found' }, { status: 404 })
+
+  if (action === 'RETRY_JIRA_SYNC') {
+    if (request.jiraIssueKey) {
+      return NextResponse.json({ ok: true, alreadyCreated: true, jiraIssueKey: request.jiraIssueKey })
+    }
+    if (!['FAILED', 'PENDING_APPROVAL'].includes(request.jiraSyncStatus)) {
+      return NextResponse.json({ error: `Jira sync cannot be retried from ${request.jiraSyncStatus}` }, { status: 422 })
+    }
+    const queued = await prisma.$transaction(async (tx) => {
+      const claimed = await tx.trainingRequest.updateMany({
+        where: { id, jiraIssueKey: null, jiraSyncStatus: request.jiraSyncStatus },
+        data: { jiraSyncStatus: 'QUEUED', jiraSyncError: null },
+      })
+      if (claimed.count !== 1) return false
+      await tx.requestAction.create({
+        data: {
+          requestId: id,
+          action: 'jira_issue_retry_queued',
+          actor,
+          source: 'ui',
+          metadata: { previousStatus: request.jiraSyncStatus },
+        },
+      })
+      return true
+    })
+    if (!queued) {
+      return NextResponse.json({ error: 'Jira sync changed before it could be retried' }, { status: 409 })
+    }
+    after(async () => {
+      await createJiraIssueForRequest(id)
+    })
+    return NextResponse.json({ ok: true, jiraSyncStatus: 'QUEUED' }, { status: 202 })
+  }
 
   if (action === 'RETRY_ASSET_BUILD' || action === 'REGENERATE_ASSET_BUILD') {
     const op = checkOperator(req)

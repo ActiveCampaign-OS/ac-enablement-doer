@@ -53,7 +53,9 @@ DECLINED (requires category + reason — feeds future assessments as negative ex
     `jira:create-issue` access request; an ACOS Data admin must approve it before the first
     ticket can be created. `JIRA_PROJECT_KEY` and `JIRA_ISSUE_TYPE` can override the defaults.
     The app sends ACOS's flat `projectKey` create contract and labels the issue
-    `enablement-doer`.
+    `enablement-doer`. It requests an unassigned ticket first, then falls back to the
+    Jira project lead when GEP requires an assignee. Set `JIRA_ASSIGNEE_ACCOUNT_ID` to pin
+    assignment to a specific Jira account.
      The current ACOS Jira catalog does not expose issue-update, watcher, or request-participant
      writes, so follow-up answers remain in the linked request until those managed endpoints are
      added and approved.

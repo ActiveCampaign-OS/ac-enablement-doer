@@ -22,6 +22,13 @@ interface JiraCreateIssueResponse {
   }
 }
 
+interface JiraProjectResponse {
+  lead?: { accountId?: string }
+  project?: { lead?: { accountId?: string } }
+}
+
+type JiraAssignee = { accountId: string } | null
+
 function appUrl(): string {
   return (process.env.NEXT_PUBLIC_APP_URL || 'https://ac-enablement-doer.ac-spark.com').replace(/\/$/, '')
 }
@@ -66,6 +73,29 @@ function errorDetails(error: unknown): { code: string; message: string } {
 
 function requiresApproval(code: string): boolean {
   return code === 'PENDING_APPROVAL' || code === 'AUTH_PERMISSION_DENIED'
+}
+
+function isAssigneeError(error: unknown): boolean {
+  const { code, message } = errorDetails(error)
+  return code === 'VENDOR_ERROR' && /assignee|unassigned/i.test(message)
+}
+
+function projectLeadAccountId(project: JiraProjectResponse): string | null {
+  const accountId = project.lead?.accountId ?? project.project?.lead?.accountId
+  return accountId?.trim() || null
+}
+
+function createIssueParams(request: TrainingRequest, projectKey: string, issueType: string, assignee: JiraAssignee) {
+  return {
+    projectKey,
+    summary: truncate(request.title, 250),
+    issueType,
+    description: descriptionText(request),
+    fields: {
+      assignee,
+      labels: ['enablement-doer'],
+    },
+  }
 }
 
 export interface JiraAccessCheck {
@@ -113,15 +143,27 @@ export async function createJiraIssueForRequest(requestId: string): Promise<void
   try {
     const projectKey = process.env.JIRA_PROJECT_KEY?.trim() || DEFAULT_PROJECT_KEY
     const issueType = process.env.JIRA_ISSUE_TYPE?.trim() || DEFAULT_ISSUE_TYPE
-    const { data } = await callAcos<JiraCreateIssueResponse>('jira', 'create-issue', {
-      projectKey,
-      summary: truncate(request.title, 250),
-      issueType,
-      description: descriptionText(request),
-      fields: {
-        labels: ['enablement-doer'],
-      },
-    })
+    const configuredAssignee = process.env.JIRA_ASSIGNEE_ACCOUNT_ID?.trim()
+    let data: JiraCreateIssueResponse
+    try {
+      const result = await callAcos<JiraCreateIssueResponse>(
+        'jira',
+        'create-issue',
+        createIssueParams(request, projectKey, issueType, configuredAssignee ? { accountId: configuredAssignee } : null)
+      )
+      data = result.data
+    } catch (error) {
+      if (configuredAssignee || !isAssigneeError(error)) throw error
+      const { data: project } = await callAcos<JiraProjectResponse>('jira', 'get-project', { projectIdOrKey: projectKey })
+      const leadAccountId = projectLeadAccountId(project)
+      if (!leadAccountId) throw error
+      const result = await callAcos<JiraCreateIssueResponse>(
+        'jira',
+        'create-issue',
+        createIssueParams(request, projectKey, issueType, { accountId: leadAccountId })
+      )
+      data = result.data
+    }
     const jiraIssueKey = issueKeyFrom(data)
     if (!jiraIssueKey) throw new Error('Jira create-issue returned no issue key')
 

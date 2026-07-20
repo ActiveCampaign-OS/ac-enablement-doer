@@ -28,6 +28,7 @@ export function JiraWorkItem({
   initialState: JiraWorkItemState
 }) {
   const [state, setState] = useState(initialState)
+  const [retrying, setRetrying] = useState(false)
 
   useEffect(() => {
     if (!isCreating(state.jiraSyncStatus)) return
@@ -74,9 +75,31 @@ export function JiraWorkItem({
     )
   }
 
+  async function retry() {
+    setRetrying(true)
+    try {
+      const response = await fetch(`/api/requests/${requestId}/action`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'RETRY_JIRA_SYNC' }),
+      })
+      const body = await response.json().catch(() => ({}))
+      if (!response.ok) {
+        setState((current) => ({ ...current, jiraSyncError: body.error ?? `Retry failed (${response.status})` }))
+        return
+      }
+      setState((current) => ({ ...current, jiraSyncStatus: body.jiraSyncStatus ?? 'QUEUED', jiraSyncError: null }))
+    } finally {
+      setRetrying(false)
+    }
+  }
+
   return (
-    <p className="nb-jira-work-item nb-jira-work-item-error" role="alert">
-      Jira creation needs attention: {state.jiraSyncError ?? state.jiraSyncStatus.replaceAll('_', ' ')}
-    </p>
+    <div className="nb-jira-work-item nb-jira-work-item-error" role="alert">
+      <p>Jira creation needs attention: {state.jiraSyncError ?? state.jiraSyncStatus.replaceAll('_', ' ')}</p>
+      <button type="button" className="nb-button" onClick={() => void retry()} disabled={retrying}>
+        {retrying ? 'Retrying Jira…' : 'Retry Jira'}
+      </button>
+    </div>
   )
 }
