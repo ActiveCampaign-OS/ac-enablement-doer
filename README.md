@@ -45,6 +45,9 @@ DECLINED (requires category + reason — feeds future assessments as negative ex
      or set an incoming webhook. App works without a channel ID; notifications just no-op.
    - `OPERATOR_ALLOWLIST` — comma-separated operator emails. **Unset = everyone is an
      operator** (opt-in enforcement, same pattern as `WRITE_ALLOWLIST`).
+   - `GLEAN_DEFAULT_TOKEN` — bearer token for the Glean Streamable HTTP MCP endpoint. The
+     asset worker does not invoke Glean yet; first verify the token and the exposed tool contract
+     at `/api/diagnostics/glean`. `GLEAN_MCP_URL` may override the default endpoint when needed.
    - `SPINE_CONFLUENCE_PAGE_ID` (optional) — page id of the Spine doc to enable the weekly
      refresh cron. Also needs the `confluence` vendor appAccess grant (check
      `/api/diagnostics/confluence`).
@@ -86,6 +89,7 @@ in-cluster and the headers are omitted.
 ## Diagnostics (declared as hooks-bypass webhooks — curl-able without SSO)
 
 - `/api/diagnostics/acos` — env + vendor list with appAccess flags
+- `/api/diagnostics/glean` — safe Glean MCP handshake plus exposed tool names/input keys; does not run an agent
 - `/api/diagnostics/integrations` — safe Jira + Slack readiness: ACOS env, vendor grants,
   Jira project/issue type, and whether `SLACK_CHANNEL_ID` is configured; creates nothing
 - `/api/diagnostics/confluence` — access check; `?pageId=…` proves get-page-body + parser

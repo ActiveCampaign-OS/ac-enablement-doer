@@ -8,6 +8,7 @@
   ],
   "webhooks": [
     "/api/diagnostics/acos",
+    "/api/diagnostics/glean",
     "/api/diagnostics/integrations",
     "/api/diagnostics/confluence",
     "/api/diagnostics/outcomes",
