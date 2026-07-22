@@ -62,7 +62,10 @@ function descriptionText(request: JiraRequest): string {
   const entries: Array<[string, string | null | undefined]> = [
     ['Submitted by', request.requesterEmail],
     ['Situation, challenge, or initiative', request.description],
-    ['Outcomes and success measures', request.businessGoal],
+    ['Requester starting point', request.requestType],
+    ['Business impact', request.businessImpact ?? request.businessGoal],
+    ['Success measures', request.successMeasures],
+    ['Desired behavior change', request.desiredBehavior],
     ['Required audience', request.audience],
     ['Desired timeline', request.urgency],
     ['Hard deadline', request.dueDate?.toISOString().slice(0, 10)],

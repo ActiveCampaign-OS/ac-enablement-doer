@@ -13,6 +13,19 @@ const DECLINE_CATEGORIES = [
   { value: 'other', label: 'Other' },
 ]
 
+function deliverableLabel(type: DeliverableType | null): string {
+  const labels: Partial<Record<DeliverableType, string>> = {
+    SELF_SERVE_RESOURCE: 'self-serve route',
+    MANAGER_GUIDE: 'manager guide',
+    JOB_AID: 'job aid',
+    DECK: 'deck',
+    RISE_COURSE: 'Rise course',
+    SOLIDROAD_SIM_SPEC: 'Solidroad simulation brief',
+    OTHER: 'recommended resolution',
+  }
+  return type ? (labels[type] ?? type) : 'recommendation'
+}
+
 interface Viewer {
   email: string | null
   isOperator: boolean
@@ -86,10 +99,11 @@ export function RequestActions({
 
   const isRequester = viewer?.email === requesterEmail
   const isOperator = viewer?.isOperator ?? false
+  const typeLabel = deliverableLabel(effectiveType)
 
   const buttons: Array<{ label: string; action: string; show: boolean; primary?: boolean }> = [
     {
-      label: handoff ? `Confirm ${effectiveType ?? ''} (human build)` : `Confirm ${effectiveType ?? ''}`,
+      label: handoff ? `Confirm ${typeLabel} (human handoff)` : `Confirm ${typeLabel}`,
       action: 'CONFIRMED',
       show: status === 'RECOMMENDED' && (isRequester || isOperator),
       primary: true,

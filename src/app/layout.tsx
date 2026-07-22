@@ -9,7 +9,7 @@ import './globals.css'
 export const metadata: Metadata = {
   title: 'Enablement Do-er',
   description:
-    'Autonomous agent for reactive training requests — assessed against the Design to Impact Spine',
+    'Support-needs intake and Enablement routing agent assessed against the Design to Impact Spine',
 }
 
 function TopNav() {

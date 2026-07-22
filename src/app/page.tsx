@@ -35,7 +35,7 @@ export default async function Home() {
             recommends the smallest useful deliverable, and gets it built or handed off.
           </p>
           <Link href="/requests/new" className="nb-button nb-button-primary">
-            + Start a training request
+            + Tell us what you need
           </Link>
         </div>
       </section>

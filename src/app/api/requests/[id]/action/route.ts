@@ -178,6 +178,7 @@ export async function POST(
     const extraData: Record<string, unknown> = {}
     let handoffCreated = false
     let assetBuildQueued = false
+    let selfServeDelivered = false
     let confirmedType: DeliverableType | null = null
     if (nextStatus === 'CONFIRMED') {
       confirmedType = request.confirmedType ?? request.recommendedType
@@ -193,6 +194,9 @@ export async function POST(
       if (autonomy === 'HUMAN_HANDOFF') {
         nextStatus = 'HANDOFF_REQUIRED' // CONFIRMED → HANDOFF_REQUIRED collapsed into one step
         handoffCreated = true
+      } else if (confirmedType === 'SELF_SERVE_RESOURCE') {
+        nextStatus = 'DELIVERED'
+        selfServeDelivered = true
       } else {
         nextStatus = 'GENERATING'
         assetBuildQueued = true
@@ -290,7 +294,15 @@ export async function POST(
           deliverableType: updated.confirmedType,
         })
       } else if (nextStatus === 'DELIVERED') {
-        await notifySlack(requestBlocks('Delivered', updated, `Marked delivered by ${actor ?? 'operator'}`))
+        await notifySlack(
+          requestBlocks(
+            selfServeDelivered ? 'Self-serve route confirmed' : 'Delivered',
+            updated,
+            selfServeDelivered
+              ? `Confirmed by ${actor ?? 'stakeholder'} — no new Enablement asset was needed.`
+              : `Marked delivered by ${actor ?? 'operator'}`
+          )
+        )
         await logOutcome('training-asset-delivered', {
           requestId: id,
           deliverableType: updated.confirmedType,

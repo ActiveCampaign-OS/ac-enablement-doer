@@ -1,0 +1,7 @@
+ALTER TYPE "DeliverableType" ADD VALUE IF NOT EXISTS 'SELF_SERVE_RESOURCE';
+
+ALTER TABLE "TrainingRequest"
+  ADD COLUMN IF NOT EXISTS "requestType" TEXT,
+  ADD COLUMN IF NOT EXISTS "businessImpact" TEXT,
+  ADD COLUMN IF NOT EXISTS "successMeasures" TEXT,
+  ADD COLUMN IF NOT EXISTS "desiredBehavior" TEXT;

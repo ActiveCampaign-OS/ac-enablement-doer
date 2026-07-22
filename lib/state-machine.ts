@@ -32,6 +32,7 @@ export const DELIVERABLE_AUTONOMY: Record<DeliverableType, Autonomy> = {
   SOLIDROAD_SIM_SPEC: 'HUMAN_HANDOFF', // no Solidroad API — agent writes the spec, human builds
   RISE_COURSE: 'HUMAN_HANDOFF', // policy gate: Rise builds always go through a human
   OTHER: 'HUMAN_HANDOFF',
+  SELF_SERVE_RESOURCE: 'AUTONOMOUS', // confirmation closes with the supplied self-serve route; no asset build
 }
 
 export const DECLINE_CATEGORIES = [

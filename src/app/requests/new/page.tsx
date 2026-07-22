@@ -19,8 +19,11 @@ export default function NewRequestPage() {
     const payload = {
       title: fd.get('title'),
       description: fd.get('description'),
+      requestType: fd.get('requestType'),
+      businessImpact: fd.get('businessImpact'),
+      successMeasures: fd.get('successMeasures'),
+      desiredBehavior: fd.get('desiredBehavior'),
       audience: fd.get('audience'),
-      businessGoal: fd.get('businessGoal'),
       urgency: fd.get('urgency'),
       dueDate: fd.get('dueDate') || null,
       stakeholders: fd.get('stakeholders'),
@@ -50,17 +53,17 @@ export default function NewRequestPage() {
     <div className="max-w-2xl mx-auto py-4">
       <div className="mb-7 space-y-3">
         <span className="nb-kicker">Intake desk</span>
-        <h1 className="text-4xl font-black uppercase tracking-[-0.08em] leading-none">New training request</h1>
+        <h1 className="text-4xl font-black uppercase tracking-[-0.08em] leading-none">What support do you need?</h1>
         <p className="max-w-xl text-sm font-semibold leading-6 text-[#5f594f]">
-          Use the same information you would provide in Global Enablement Programming&apos;s Help
-          Center request. More context up front means fewer follow-up questions later.
+          Start with the business need, not a pre-selected solution. We&apos;ll diagnose whether the best
+          next step is self-serve guidance, a coaching asset, Enablement partnership, or a non-training fix.
         </p>
       </div>
 
       <form onSubmit={onSubmit} className="nb-panel p-5 sm:p-7 space-y-5">
         <div>
           <label className={label} htmlFor="title">
-            Request / Project Title <span className="text-red-400">*</span>
+            Brief request title <span className="text-red-400">*</span>
           </label>
           <p className="mb-2 text-xs font-semibold text-[#625d53]">
             Brief descriptive title — less than 250 characters.
@@ -76,11 +79,11 @@ export default function NewRequestPage() {
         </div>
         <div>
           <label className={label} htmlFor="description">
-            What situation, challenge, or initiative are you requesting enablement support for?{' '}
+            What is happening?{' '}
             <span className="text-red-400">*</span>
           </label>
           <p className="mb-2 text-xs font-semibold text-[#625d53]">
-            Describe what is happening and the gap or challenge enablement will help address.
+            Describe the initiative, product, process, or challenge. You do not need to prescribe a training or resource solution.
           </p>
           <textarea
             id="description"
@@ -88,24 +91,71 @@ export default function NewRequestPage() {
             required
             rows={5}
             className={input}
-            placeholder="Include the initiative, product, process, or update and the current gap."
+            placeholder="What changed, where is the gap, and who or what is affected?"
           />
         </div>
         <div>
-          <label className={label} htmlFor="businessGoal">
-            What outcomes are you aiming to achieve, and how will you measure success?{' '}
+          <label className={label} htmlFor="requestType">
+            Where should we start? <span className="text-red-400">*</span>
+          </label>
+          <p className="mb-2 text-xs font-semibold text-[#625d53]">
+            This is a starting point, not a solution choice. Select help me diagnose if you are unsure.
+          </p>
+          <select id="requestType" name="requestType" required defaultValue="HELP_ME_DIAGNOSE" className={input}>
+            <option value="HELP_ME_DIAGNOSE">Help me diagnose the right support</option>
+            <option value="SELF_SERVE_RESOURCE">Find or share a self-serve resource</option>
+            <option value="COACHING_SUPPORT">Support managers with coaching</option>
+            <option value="ENABLEMENT_PARTNERSHIP">Explore an Enablement partnership</option>
+            <option value="OTHER">Something else</option>
+          </select>
+        </div>
+        <div>
+          <label className={label} htmlFor="businessImpact">
+            What business impact are you trying to achieve?{' '}
             <span className="text-red-400">*</span>
           </label>
           <p className="mb-2 text-xs font-semibold text-[#625d53]">
-            Include expected adoption, behavior changes, KPIs, CSAT/NPS, quality metrics, or error reduction.
+            Describe the outcome this should affect: customer experience, revenue, adoption, quality, risk, efficiency, or another result.
           </p>
           <textarea
-            id="businessGoal"
-            name="businessGoal"
+            id="businessImpact"
+            name="businessImpact"
             required
             rows={4}
             className={input}
-            placeholder="e.g. Lift adoption to 80% and reduce errors by 25% within one quarter."
+            placeholder="e.g. Improve customer reactivation outcomes and reduce avoidable handoffs."
+          />
+        </div>
+        <div>
+          <label className={label} htmlFor="successMeasures">
+            How will you know this worked? <span className="text-red-400">*</span>
+          </label>
+          <p className="mb-2 text-xs font-semibold text-[#625d53]">
+            Include the signal, baseline or target, and timeframe when known. Qualitative evidence is welcome when a KPI is not available.
+          </p>
+          <textarea
+            id="successMeasures"
+            name="successMeasures"
+            required
+            rows={3}
+            className={input}
+            placeholder="e.g. 80% adoption by Q4, fewer escalation errors, and manager confidence in weekly check-ins."
+          />
+        </div>
+        <div>
+          <label className={label} htmlFor="desiredBehavior">
+            What should people do differently? <span className="text-red-400">*</span>
+          </label>
+          <p className="mb-2 text-xs font-semibold text-[#625d53]">
+            Describe the observable behavior, when it should happen, and what good looks like. If the issue is not behavior, say so.
+          </p>
+          <textarea
+            id="desiredBehavior"
+            name="desiredBehavior"
+            required
+            rows={4}
+            className={input}
+            placeholder="e.g. AEs diagnose reactivation fit in discovery and use the approved talk track before escalating."
           />
         </div>
         <div>
@@ -164,11 +214,11 @@ export default function NewRequestPage() {
         </div>
         <div>
           <label className={label} htmlFor="sourceMaterials">
-            What existing resources or documentation should be used to build this enablement?{' '}
+            What source materials are available?{' '}
             <span className="text-red-400">*</span>
           </label>
           <p className="mb-2 text-xs font-semibold text-[#625d53]">
-            Include decks, process docs, guides, recordings, or in-progress materials and their readiness dates.
+            Include decks, process docs, guides, recordings, existing self-serve resources, or in-progress materials and their readiness dates.
           </p>
           <textarea
             id="sourceMaterials"
@@ -181,10 +231,10 @@ export default function NewRequestPage() {
         </div>
         <div>
           <label className={label} htmlFor="accountability">
-            Next steps and accountability <span className="text-red-400">*</span>
+            How will the desired behavior be reinforced? <span className="text-red-400">*</span>
           </label>
           <p className="mb-2 text-xs font-semibold text-[#625d53]">
-            Explain learner expectations and how managers or leaders will reinforce success through coaching, reporting, dashboards, or follow-ups.
+            Explain who owns follow-through and how managers or leaders will reinforce success through coaching, reporting, dashboards, or follow-ups.
           </p>
           <textarea
             id="accountability"

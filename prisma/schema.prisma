@@ -33,6 +33,7 @@ enum DeliverableType {
   SOLIDROAD_SIM_SPEC
   RISE_COURSE
   OTHER
+  SELF_SERVE_RESOURCE
 }
 
 enum Autonomy {
@@ -64,14 +65,18 @@ enum MessageRole {
 model TrainingRequest {
   id              String           @id @default(cuid())
   title           String
-  description     String           @db.Text // what needs training + why
+  description     String           @db.Text // situation, challenge, or initiative
   requesterEmail  String // from SSO header
+  requestType     String?          // requester starting point; never a binding solution choice
+  businessImpact  String?          @db.Text // business outcome the stakeholder wants
+  successMeasures String?          @db.Text // observable indicators of success
+  desiredBehavior String?          @db.Text // who should do what differently, when, and how
   audience        String? // who is being trained
-  businessGoal    String?          @db.Text // outcome the stakeholder wants
+  businessGoal    String?          @db.Text // legacy combined impact + success measure field
   urgency         String? // freeform ("this quarter", "before June launch")
   stakeholders    String?          @db.Text // advocates, approvers, reviewers, and SMEs
   sourceMaterials String?          @db.Text // available or in-progress build inputs
-  accountability  String?          @db.Text // post-training reinforcement and expectations
+  accountability  String?          @db.Text // reinforcement and expectations after the support lands
   dueDate         DateTime?
   contentLinks    String[] // source material URLs (Confluence, GDocs, …)
   pixelDoodle     Json?

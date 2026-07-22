@@ -14,7 +14,9 @@ export const dynamic = 'force-dynamic'
 
 interface Recommendation {
   deliverableType: string
+  supportRoute?: string
   rationale: string
+  nextStep?: string
   confidence: number
   effort?: { size?: string; hours?: number }
 }
@@ -35,6 +37,17 @@ function RequestBriefItem({ label, children }: { label: string; children: ReactN
       <dd className="font-semibold whitespace-pre-wrap">{children}</dd>
     </div>
   )
+}
+
+function requestTypeLabel(value: string): string {
+  const labels: Record<string, string> = {
+    HELP_ME_DIAGNOSE: 'Help me diagnose the right support',
+    SELF_SERVE_RESOURCE: 'Find or share a self-serve resource',
+    COACHING_SUPPORT: 'Support managers with coaching',
+    ENABLEMENT_PARTNERSHIP: 'Explore an Enablement partnership',
+    OTHER: 'Something else',
+  }
+  return labels[value] ?? value
 }
 
 export default async function RequestDetailPage({
@@ -105,10 +118,21 @@ export default async function RequestDetailPage({
           <RequestBriefItem label="Situation, challenge, or initiative">
             {request.description}
           </RequestBriefItem>
-          {request.businessGoal && (
-            <RequestBriefItem label="Outcomes and success measures">
-              {request.businessGoal}
+          {request.requestType && (
+            <RequestBriefItem label="Requester starting point">
+              {requestTypeLabel(request.requestType)}
             </RequestBriefItem>
+          )}
+          {request.businessImpact ? (
+            <RequestBriefItem label="Business impact">{request.businessImpact}</RequestBriefItem>
+          ) : request.businessGoal ? (
+            <RequestBriefItem label="Outcomes and success measures">{request.businessGoal}</RequestBriefItem>
+          ) : null}
+          {request.successMeasures && (
+            <RequestBriefItem label="Success measures">{request.successMeasures}</RequestBriefItem>
+          )}
+          {request.desiredBehavior && (
+            <RequestBriefItem label="Desired behavior change">{request.desiredBehavior}</RequestBriefItem>
           )}
           {request.audience && (
             <RequestBriefItem label="Required audience">{request.audience}</RequestBriefItem>
@@ -224,6 +248,11 @@ export default async function RequestDetailPage({
                     <span className="font-mono text-xs font-bold bg-[#b7a0ff] border-2 border-black px-2 py-1">
                       {r.deliverableType}
                     </span>
+                    {r.supportRoute && (
+                      <span className="font-mono text-xs font-bold bg-[#bdf4d2] border-2 border-black px-2 py-1">
+                        {r.supportRoute.replaceAll('_', ' ')}
+                      </span>
+                    )}
                     {DELIVERABLE_AUTONOMY[r.deliverableType as DeliverableType] === 'HUMAN_HANDOFF' && (
                       <span className="nb-status nb-status-handoff">
                         HUMAN BUILD
@@ -234,6 +263,7 @@ export default async function RequestDetailPage({
                     </span>
                   </div>
                   <p className="text-sm font-semibold mt-2">{r.rationale}</p>
+                  {r.nextStep && <p className="text-sm font-semibold mt-2 text-[#625d53]">Next step: {r.nextStep}</p>}
                 </div>
               ))}
             </div>

@@ -4,6 +4,7 @@
 
 export const DELIVERABLE_MENU = `## Deliverable types you may recommend
 
+- SELF_SERVE_RESOURCE — the requester can proceed with an existing guide, process, or resource already named in the evidence. Use only when you can name the self-serve next step without inventing a resource. Confirmation closes the request; no new asset is built.
 - JOB_AID — a one-page reference the learner uses at the moment of need (checklists, decision trees, step-by-steps). Right when the barrier is reference knowledge, not skill. The agent can build this autonomously.
 - MANAGER_GUIDE — a structured document for people leaders to run a conversation, rollout, or reinforcement rhythm with their team. The agent can build this autonomously.
 - DECK — a slide deck for a live or async session (kickoff, briefing, short training). The agent can build this autonomously.
@@ -11,13 +12,21 @@ export const DELIVERABLE_MENU = `## Deliverable types you may recommend
 - RISE_COURSE — a full self-paced eLearning course in Rise. Only when the scope genuinely needs structured multi-module learning. Always a HUMAN build with a review gate; recommend it only when smaller formats clearly cannot carry the behaviour change.
 - OTHER — anything that doesn't fit the above (live workshop series, coaching programme, process/tooling fix instead of training). Explain what and why; a human will scope it.
 
-Bias toward the SMALLEST deliverable that moves the target behaviour — the Spine's Train step says to strip anything that doesn't serve a see/do behaviour. If the gap diagnosis says the barrier is environment or motivation rather than knowledge/skill, say so plainly and recommend OTHER with a non-training suggestion.`
+Bias toward the SMALLEST useful intervention — the Spine's Train step says to strip anything that doesn't serve a see/do behaviour. If the gap diagnosis says the barrier is environment, process, ownership, or motivation rather than knowledge or skill, say so plainly and recommend OTHER with a concrete non-training suggestion.
+
+## Support routes
+
+Every recommendation must use one route:
+- SELF_SERVE — a requester can use an existing resource or clear next step without new Enablement work. Use SELF_SERVE_RESOURCE only when the evidence identifies that path.
+- COACHING_ASSET — a manager or local leader needs a focused coaching aid, typically a MANAGER_GUIDE or small JOB_AID.
+- ENABLEMENT_PARTNERSHIP — route to Enablement when work has material business impact, a broad or cross-functional audience, a genuine behavior change, launch risk, or a multi-part program need. Select the smallest relevant deliverable type.
+- NON_TRAINING_RESOLUTION — the root cause is process, environment, ownership, tooling, or motivation. Use OTHER and name the owner or decision needed; do not disguise it as training.`
 
 export const ASSESSMENT_SYSTEM_PROMPT = (framework: string) => `You are the Enablement Do-er, a collaborative instructional-design copilot for ActiveCampaign's enablement teams. You work step-by-step with a stakeholder through the Design to Impact Spine. You are not an autonomous planner: keep the human judgment layer visible, make a recommendation instead of lecturing about the framework, and only produce a formal deliverable when the stakeholder explicitly asks for one.
 
 The request and conversation are your only evidence. Do not claim to have searched Glean, Jira, Confluence, or linked URLs. When an existing resource is named but its relevant contents are not present, record that as a gap and ask for the smallest useful excerpt or decision-relevant detail. Keep context lean and use only the most relevant supplied evidence.
 
-Start with the business goal, then identify who must do what differently, when, and to what standard. Diagnose the barrier before assuming training is the answer. Consider knowledge, skill, motivation, environment, process, and manager support; use a non-training intervention when it is the better fit. Separate [Evidence], [Gap], and [Assumption] clearly in your summaries.
+Start with business impact and success measures, then identify who must do what differently, when, and to what standard. Diagnose the barrier before assuming training is the answer. Consider knowledge, skill, motivation, environment, process, and manager support; use a non-training intervention when it is the better fit. A requester's stated starting point is a signal, never a binding solution choice. Separate [Evidence], [Gap], and [Assumption] clearly in your summaries.
 
 ${framework}
 
@@ -76,7 +85,9 @@ A request is INSUFFICIENT when you cannot name the business goal it rolls up to,
   "recommendations": [
     {
       "deliverableType": "JOB_AID",
+      "supportRoute": "SELF_SERVE|COACHING_ASSET|ENABLEMENT_PARTNERSHIP|NON_TRAINING_RESOLUTION",
       "rationale": "…",
+      "nextStep": "…",
       "confidence": 0-100,
       "effort": { "size": "S|M|L", "hours": number }
     }
@@ -87,14 +98,18 @@ A request is INSUFFICIENT when you cannot name the business goal it rolls up to,
 Output constraints:
 - currentStage must be one of Design, Motivate, Train, Plan, Reinforce, Measure.
 - keyEvidence has 3–7 bullets when evidence exists; keep it empty rather than inventing evidence.
-- recommendations and scopingQuestions are empty when sufficient; otherwise recommendations are empty and scopingQuestions has exactly one concise question.
+- when sufficient, recommendations contains 1 or 2 options and scopingQuestions is empty; when insufficient, recommendations is empty and scopingQuestions has exactly one concise question.
 - nextDecision.options has 2–3 options only when a real decision is open; otherwise it is an empty array or nextDecision is null.
-- Do not recommend a training deliverable just because one was requested. Use OTHER with a concrete non-training intervention when the likely gap is not knowledge or skill.
+- Do not recommend a training deliverable just because one was requested. SELF_SERVE_RESOURCE requires an identified existing resource or a concrete self-serve path. Use OTHER with a concrete non-training intervention when the likely gap is not knowledge or skill.
 }`
 
 export function buildUserMessage(input: {
   title: string
   description: string
+  requestType: string | null
+  businessImpact: string | null
+  successMeasures: string | null
+  desiredBehavior: string | null
   audience: string | null
   businessGoal: string | null
   urgency: string | null
@@ -108,13 +123,17 @@ export function buildUserMessage(input: {
   negatives: Array<{ category: string; reason: string }>
 }): string {
   const parts: string[] = []
-  parts.push(`# Training request\n\nTitle: ${input.title}\n\nDescription:\n${input.description}`)
+  parts.push(`# Support request\n\nTitle: ${input.title}\n\nSituation:\n${input.description}`)
+  if (input.requestType) parts.push(`Requester starting point (not a binding solution): ${input.requestType}`)
+  if (input.businessImpact) parts.push(`Business impact sought:\n${input.businessImpact}`)
+  if (input.successMeasures) parts.push(`Success measures:\n${input.successMeasures}`)
+  if (input.desiredBehavior) parts.push(`Desired behavior change:\n${input.desiredBehavior}`)
   if (input.audience) parts.push(`Audience: ${input.audience}`)
-  if (input.businessGoal) parts.push(`Stated business goal: ${input.businessGoal}`)
+  if (input.businessGoal) parts.push(`Legacy combined business goal:\n${input.businessGoal}`)
   if (input.urgency) parts.push(`Urgency: ${input.urgency}`)
   if (input.stakeholders) parts.push(`Key stakeholders and roles:\n${input.stakeholders}`)
   if (input.sourceMaterials) parts.push(`Existing resources or documentation:\n${input.sourceMaterials}`)
-  if (input.accountability) parts.push(`Post-training accountability and reinforcement:\n${input.accountability}`)
+  if (input.accountability) parts.push(`Reinforcement and accountability:\n${input.accountability}`)
   if (input.dueDate) parts.push(`Due date: ${input.dueDate.toISOString().slice(0, 10)}`)
   if (input.contentLinks.length) parts.push(`Source material links (not fetched — note in scoping if content is needed):\n${input.contentLinks.map((l) => `- ${l}`).join('\n')}`)
 

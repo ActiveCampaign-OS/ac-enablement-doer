@@ -116,6 +116,10 @@ export async function collectSourceSnapshot(input: {
     request: {
       title: input.request.title,
       description: input.request.description,
+      requestType: input.request.requestType,
+      businessImpact: input.request.businessImpact,
+      successMeasures: input.request.successMeasures,
+      desiredBehavior: input.request.desiredBehavior,
       audience: input.request.audience,
       businessGoal: input.request.businessGoal,
       urgency: input.request.urgency,
@@ -204,6 +208,9 @@ export async function generateAssetDraft(input: {
   deliverableType: DeliverableType
   sourceSnapshot: SourceSnapshot
 }): Promise<GeneratedAsset> {
+  if (input.deliverableType === 'SELF_SERVE_RESOURCE') {
+    throw new Error('self-serve routes do not create a new asset build')
+  }
   const cfHeaders =
     process.env.CF_ACCESS_CLIENT_ID && process.env.CF_ACCESS_CLIENT_SECRET
       ? {

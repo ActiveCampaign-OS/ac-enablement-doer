@@ -14,10 +14,20 @@ const DEFAULT_MODEL = 'claude-sonnet-4-6'
 const SPINE_STAGES = ['Design', 'Motivate', 'Train', 'Plan', 'Reinforce', 'Measure'] as const
 
 type SpineStage = (typeof SPINE_STAGES)[number]
+type SupportRoute = 'SELF_SERVE' | 'COACHING_ASSET' | 'ENABLEMENT_PARTNERSHIP' | 'NON_TRAINING_RESOLUTION'
+
+const SUPPORT_ROUTES: SupportRoute[] = [
+  'SELF_SERVE',
+  'COACHING_ASSET',
+  'ENABLEMENT_PARTNERSHIP',
+  'NON_TRAINING_RESOLUTION',
+]
 
 interface Recommendation {
   deliverableType: string
+  supportRoute: SupportRoute
   rationale: string
+  nextStep: string
   confidence: number
   effort: { size: string; hours: number }
 }
@@ -96,6 +106,10 @@ export async function runAssessment(requestId: string, source: 'system' | 'cron'
     let userMsg = buildUserMessage({
       title: request.title,
       description: request.description,
+      requestType: request.requestType,
+      businessImpact: request.businessImpact,
+      successMeasures: request.successMeasures,
+      desiredBehavior: request.desiredBehavior,
       audience: request.audience,
       businessGoal: request.businessGoal,
       urgency: request.urgency,
@@ -163,12 +177,17 @@ export async function runAssessment(requestId: string, source: 'system' | 'cron'
     }
 
     // Coerce anything off-menu to OTHER — and never trust the LLM for autonomy.
-    const recommendations = (parsed.recommendations ?? []).slice(0, 2).map((r) => ({
-      ...r,
-      deliverableType: (r.deliverableType in DELIVERABLE_AUTONOMY
+    const recommendations = (parsed.recommendations ?? []).slice(0, 2).map((r) => {
+      const deliverableType = (r.deliverableType in DELIVERABLE_AUTONOMY
         ? r.deliverableType
-        : 'OTHER') as DeliverableType,
-    }))
+        : 'OTHER') as DeliverableType
+      return {
+        ...r,
+        deliverableType,
+        supportRoute: normalizeSupportRoute(r.supportRoute, deliverableType),
+        nextStep: normalizeText(r.nextStep) ?? 'Confirm this route or reply with what needs to change.',
+      }
+    })
     const primary = recommendations[0] ?? null
     const currentStage = normalizeStage(parsed.currentStage)
     const nextDecision = normalizeNextDecision(parsed.nextDecision)
@@ -332,6 +351,19 @@ function normalizeTextList(value: unknown, limit: number): string[] {
   return value.map((item) => String(item).trim()).filter(Boolean).slice(0, limit)
 }
 
+function defaultSupportRoute(deliverableType: DeliverableType): SupportRoute {
+  if (deliverableType === 'SELF_SERVE_RESOURCE') return 'SELF_SERVE'
+  if (deliverableType === 'MANAGER_GUIDE') return 'COACHING_ASSET'
+  if (deliverableType === 'OTHER') return 'NON_TRAINING_RESOLUTION'
+  return 'ENABLEMENT_PARTNERSHIP'
+}
+
+function normalizeSupportRoute(value: unknown, deliverableType: DeliverableType): SupportRoute {
+  return SUPPORT_ROUTES.includes(value as SupportRoute)
+    ? (value as SupportRoute)
+    : defaultSupportRoute(deliverableType)
+}
+
 function normalizeNextDecision(value: unknown): NextDecision | null {
   if (!value || typeof value !== 'object') return null
   const candidate = value as Record<string, unknown>
@@ -419,6 +451,7 @@ function formatRecommendationMessage(
   const lines = recs.map(
     (r, i) =>
       `${i === 0 ? '**Recommendation**' : '**Alternative**'}: ${r.deliverableType} (${r.confidence}% confident, ~${r.effort?.hours ?? '?'}h ${r.effort?.size ?? ''})\n${r.rationale}`
+        + `\n**Route**: ${r.supportRoute.replaceAll('_', ' ')}\n**Next step**: ${r.nextStep}`
   )
   const parts = context.showWorkingNotes ? [formatWorkingNotes(context.currentStage, context.workingNotes)] : []
   parts.push(lines.join('\n\n'))

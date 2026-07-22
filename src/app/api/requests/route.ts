@@ -10,6 +10,18 @@ import type { Prisma, RequestStatus } from '@prisma/client'
 export const dynamic = 'force-dynamic'
 export const maxDuration = 300
 
+const REQUEST_TYPES = [
+  'HELP_ME_DIAGNOSE',
+  'SELF_SERVE_RESOURCE',
+  'COACHING_SUPPORT',
+  'ENABLEMENT_PARTNERSHIP',
+  'OTHER',
+] as const
+
+function formatBusinessGoal(businessImpact: string, successMeasures: string): string {
+  return `Business impact:\n${businessImpact}\n\nSuccess measures:\n${successMeasures}`
+}
+
 function extractLinks(sourceMaterials: string, suppliedLinks: unknown): string[] {
   const embeddedLinks = sourceMaterials.match(/https?:\/\/[^\s<>()]+/g) ?? []
   const links = Array.isArray(suppliedLinks) ? suppliedLinks.map(String) : []
@@ -48,8 +60,12 @@ export async function POST(req: NextRequest) {
   const body = await req.json().catch(() => ({}))
   const title = String(body.title ?? '').trim()
   const description = String(body.description ?? '').trim()
+  const requestType = String(body.requestType ?? '').trim()
+  const businessImpact = String(body.businessImpact ?? '').trim()
+  const successMeasures = String(body.successMeasures ?? '').trim()
+  const desiredBehavior = String(body.desiredBehavior ?? '').trim()
   const audience = String(body.audience ?? '').trim()
-  const businessGoal = String(body.businessGoal ?? '').trim()
+  const businessGoal = formatBusinessGoal(businessImpact, successMeasures)
   const urgency = String(body.urgency ?? '').trim()
   const stakeholders = String(body.stakeholders ?? '').trim()
   const sourceMaterials = String(body.sourceMaterials ?? '').trim()
@@ -58,7 +74,9 @@ export async function POST(req: NextRequest) {
   const missingFields = [
     { value: title, label: 'request title' },
     { value: description, label: 'situation, challenge, or initiative' },
-    { value: businessGoal, label: 'outcomes and success measures' },
+    { value: businessImpact, label: 'business impact' },
+    { value: successMeasures, label: 'success measures' },
+    { value: desiredBehavior, label: 'desired behavior change' },
     { value: audience, label: 'required audience' },
     { value: urgency, label: 'desired timeline' },
     { value: stakeholders, label: 'key stakeholders' },
@@ -72,6 +90,9 @@ export async function POST(req: NextRequest) {
   }
   if (title.length > 250) {
     return NextResponse.json({ error: 'request title must be 250 characters or fewer' }, { status: 400 })
+  }
+  if (!REQUEST_TYPES.includes(requestType as (typeof REQUEST_TYPES)[number])) {
+    return NextResponse.json({ error: 'request type must be a supported starting point' }, { status: 400 })
   }
 
   const dueDateValue = String(body.dueDate ?? '').trim()
@@ -91,6 +112,10 @@ export async function POST(req: NextRequest) {
       title,
       description,
       requesterEmail: email,
+      requestType,
+      businessImpact,
+      successMeasures,
+      desiredBehavior,
       audience,
       businessGoal,
       urgency,
@@ -108,7 +133,7 @@ export async function POST(req: NextRequest) {
   })
 
   after(async () => {
-    await notifySlack(requestBlocks('New training request', request, `Submitted by ${email}`)).catch((error) => {
+    await notifySlack(requestBlocks('New support request', request, `Submitted by ${email}`)).catch((error) => {
       console.error('[requests] new-request Slack notification failed', error)
     })
     await runAssessment(request.id, 'system')

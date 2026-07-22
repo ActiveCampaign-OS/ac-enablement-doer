@@ -1,17 +1,19 @@
 # ac-enablement-doer
 
-The Enablement "Do-er" agent: owns reactive, one-off training requests end-to-end so the
-human enablement team doesn't have to. Stakeholders submit a request; the agent assesses it
+The Enablement "Do-er" agent: diagnoses reactive, one-off support needs before proposing an
+intervention. Stakeholders submit a request; the agent assesses it
 against **the Design to Impact Spine** (Global Enablement's shared framework, embedded in
 `lib/spine/framework.ts`), asks scoping questions until the Spine's bar is met (business
 goal, observable see/do behaviours, gap diagnosis), recommends the smallest deliverable that
 moves the behaviour, and runs a confirm loop. Rise courses and Solidroad simulations always
 route to a human build queue (Solidroad has no public API; Rise is gated by policy).
 
-**Current scope:** intake → assessment → recommendation → durable asset build → operator
-review → delivery. Job aids and manager guides are generated autonomously as review-ready
-Markdown drafts. Decks are generated as complete slide storyboards with an in-app preview and
-downloadable JSON source. Rise courses and Solidroad simulations remain explicit human handoffs.
+**Current scope:** diagnosis-first intake → assessment → route recommendation → durable asset build →
+operator review → delivery. Recommendations visibly route needs to self-serve guidance, a coaching
+asset, an Enablement partnership, or a non-training resolution. Job aids and manager guides are
+generated autonomously as review-ready Markdown drafts. Decks are generated as complete slide
+storyboards with an in-app preview and downloadable JSON source. Rise courses and Solidroad
+simulations remain explicit human handoffs.
 
 ## Lifecycle
 
