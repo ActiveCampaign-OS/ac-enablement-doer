@@ -121,3 +121,9 @@ in-cluster and the headers are omitted.
   editable PPTX renderer is available. The Codex-only `@oai/artifact-tool` package is not
   installable in the Spark image, so the app does not pretend to export a PowerPoint file it
   cannot render and validate in production.
+- **Data Wizard evidence research** — operators can copy a privacy-minimized, request-specific
+  brief into the StratOps Data Wizard from a request record. It explicitly asks Data Wizard to
+  consult canonical BI definitions and approved dashboards before proposing a read-only Snowflake
+  query. The app does not call Glean or Snowflake automatically; recording the handoff writes an
+  audit event with `queryExecuted: false` so research remains reviewable until an API contract and
+  approved access path are available.

@@ -33,6 +33,21 @@ export async function POST(
   const request = await prisma.trainingRequest.findUnique({ where: { id } })
   if (!request) return NextResponse.json({ error: 'Not found' }, { status: 404 })
 
+  if (action === 'DATA_WIZARD_BRIEF_PREPARED') {
+    const op = checkOperator(req)
+    if (!op.ok) return operatorForbidden(op.email)
+    const recorded = await prisma.requestAction.create({
+      data: {
+        requestId: id,
+        action: 'data_wizard_brief_prepared',
+        actor,
+        source: 'ui',
+        metadata: { provider: 'Glean StratOps Data Wizard', briefVersion: 1, queryExecuted: false },
+      },
+    })
+    return NextResponse.json({ ok: true, action: recorded.action })
+  }
+
   if (action === 'RETRY_JIRA_SYNC') {
     if (request.jiraIssueKey) {
       return NextResponse.json({ ok: true, alreadyCreated: true, jiraIssueKey: request.jiraIssueKey })

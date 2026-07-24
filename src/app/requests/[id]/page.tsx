@@ -6,7 +6,9 @@ import { ThreadPanel } from './ThreadPanel'
 import { JiraWorkItem } from './JiraWorkItem'
 import { RequestDoodle } from './RequestDoodle'
 import { AssetBuildPanel } from './AssetBuildPanel'
+import { DataWizardBrief } from './DataWizardBrief'
 import { DELIVERABLE_AUTONOMY } from '@/lib/state-machine'
+import { buildDataWizardBrief } from '@/lib/data-wizard'
 import type { DeliverableType } from '@prisma/client'
 import type { ReactNode } from 'react'
 
@@ -77,6 +79,16 @@ export default async function RequestDetailPage({
   const effectiveType = (request.confirmedType ?? request.recommendedType) as DeliverableType | null
   const handoff = effectiveType ? DELIVERABLE_AUTONOMY[effectiveType] === 'HUMAN_HANDOFF' : false
   const assetBuild = request.assetBuilds[0] ?? null
+  const dataWizardBrief = buildDataWizardBrief({
+    title: request.title,
+    description: request.description,
+    requestType: request.requestType,
+    businessImpact: request.businessImpact ?? request.businessGoal,
+    successMeasures: request.successMeasures,
+    desiredBehavior: request.desiredBehavior,
+    audience: request.audience,
+    urgency: request.urgency,
+  })
 
   return (
     <div className="max-w-3xl mx-auto py-4 space-y-8">
@@ -111,6 +123,8 @@ export default async function RequestDetailPage({
       </header>
 
       <RequestDoodle value={request.pixelDoodle} />
+
+      <DataWizardBrief requestId={request.id} prompt={dataWizardBrief} />
 
       <section className="nb-panel p-5 sm:p-6 space-y-5">
         <h2 className="nb-section-title">Request brief</h2>
