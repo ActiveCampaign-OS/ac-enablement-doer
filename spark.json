@@ -15,7 +15,8 @@
     "/api/diagnostics/spine"
   ],
   "acosData": {
-    "vendors": ["confluence", "slack", "jira"],
+    "vendors": ["confluence", "slack", "jira", "glean"],
+    "mcp": ["glean"],
     "write": ["jira:create-issue"]
   },
   "cron": [
