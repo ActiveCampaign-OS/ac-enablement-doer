@@ -29,6 +29,12 @@ interface JiraProjectResponse {
 
 type JiraAssignee = { accountId: string } | null
 
+export interface JiraAssigneeReadiness {
+  ready: boolean
+  source: 'configured-account' | 'project-lead' | 'unavailable'
+  error: string | null
+}
+
 type JiraRequest = TrainingRequest & {
   assessments: Assessment[]
   messages: RequestMessage[]
@@ -168,14 +174,27 @@ function projectLeadAccountId(project: JiraProjectResponse): string | null {
   return accountId?.trim() || null
 }
 
-async function defaultAssignee(projectKey: string): Promise<JiraAssignee> {
+async function resolveDefaultAssignee(projectKey: string): Promise<{ assignee: JiraAssignee; source: JiraAssigneeReadiness['source'] }> {
   const configuredAssignee = process.env.JIRA_ASSIGNEE_ACCOUNT_ID?.trim()
-  if (configuredAssignee) return { accountId: configuredAssignee }
+  if (configuredAssignee) return { assignee: { accountId: configuredAssignee }, source: 'configured-account' }
 
   const { data: project } = await callAcos<JiraProjectResponse>('jira', 'get-project', { projectIdOrKey: projectKey })
   const accountId = projectLeadAccountId(project)
   if (!accountId) throw new Error(`Jira project ${projectKey} has no project lead account ID for default assignment`)
-  return { accountId }
+  return { assignee: { accountId }, source: 'project-lead' }
+}
+
+export async function checkJiraAssigneeReadiness(projectKey: string): Promise<JiraAssigneeReadiness> {
+  try {
+    const { source } = await resolveDefaultAssignee(projectKey)
+    return { ready: true, source, error: null }
+  } catch (error) {
+    return {
+      ready: false,
+      source: 'unavailable',
+      error: error instanceof Error ? error.message : String(error),
+    }
+  }
 }
 
 function createIssueParams(request: JiraRequest, projectKey: string, issueType: string, assignee: JiraAssignee) {
@@ -244,14 +263,17 @@ export async function createJiraIssueForRequest(requestId: string): Promise<void
   })
   if (claim.count !== 1) return
 
+  const projectKey = process.env.JIRA_PROJECT_KEY?.trim() || DEFAULT_PROJECT_KEY
+  const issueType = process.env.JIRA_ISSUE_TYPE?.trim() || DEFAULT_ISSUE_TYPE
+  let assigneeSource: JiraAssigneeReadiness['source'] = 'unavailable'
+
   try {
-    const projectKey = process.env.JIRA_PROJECT_KEY?.trim() || DEFAULT_PROJECT_KEY
-    const issueType = process.env.JIRA_ISSUE_TYPE?.trim() || DEFAULT_ISSUE_TYPE
-    const assignee = await defaultAssignee(projectKey)
+    const resolvedAssignee = await resolveDefaultAssignee(projectKey)
+    assigneeSource = resolvedAssignee.source
     const { data } = await callAcos<JiraCreateIssueResponse>(
       'jira',
       'create-issue',
-      createIssueParams(request, projectKey, issueType, assignee)
+      createIssueParams(request, projectKey, issueType, resolvedAssignee.assignee)
     )
     const jiraIssueKey = issueKeyFrom(data)
     if (!jiraIssueKey) throw new Error('Jira create-issue returned no issue key')
@@ -277,7 +299,10 @@ export async function createJiraIssueForRequest(requestId: string): Promise<void
   } catch (error) {
     const { code, message } = errorDetails(error)
     const jiraSyncStatus = requiresApproval(code) ? 'PENDING_APPROVAL' : 'FAILED'
-    const jiraSyncError = truncate(`${code}: ${message}`, 1000)
+    const jiraSyncError = truncate(
+      `${code}: ${message} | project=${projectKey}; issueType=${issueType}; assignee=${assigneeSource}`,
+      1000
+    )
     console.error(`[jira] ${requestId} create-issue failed: ${jiraSyncError}`)
 
     await prisma.trainingRequest.update({

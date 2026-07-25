@@ -61,7 +61,9 @@ DECLINED (requires category + reason — feeds future assessments as negative ex
     The app sends ACOS's flat `projectKey` create contract and labels the issue
     `enablement-doer`. It assigns to the GEP Jira project lead by default (set that lead to
     Emily VanGilder), because GEP does not allow unassigned issues. Set
-    `JIRA_ASSIGNEE_ACCOUNT_ID` to pin assignment to a specific Jira account instead.
+    `JIRA_ASSIGNEE_ACCOUNT_ID` to pin assignment to a specific Jira account instead. The
+    integrations diagnostic checks this assignment path without creating an issue; it only
+    reports whether a configured account or project lead can be resolved.
      The current ACOS Jira catalog does not expose issue-update, watcher, or request-participant
      writes, so follow-up answers remain in the linked request until those managed endpoints are
      added and approved.

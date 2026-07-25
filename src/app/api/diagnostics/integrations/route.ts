@@ -1,20 +1,29 @@
 import { NextResponse } from 'next/server'
-import { checkJiraAccess } from '@/lib/jira'
+import { checkJiraAccess, checkJiraAssigneeReadiness } from '@/lib/jira'
 import { checkSlackAccess } from '@/lib/slack'
 
 export const dynamic = 'force-dynamic'
 export const maxDuration = 60
 
 export async function GET() {
-  const [jira, slack] = await Promise.all([checkJiraAccess(), checkSlackAccess()])
+  const jira = await checkJiraAccess()
+  const [slack, jiraAssignee] = await Promise.all([
+    checkSlackAccess(),
+    checkJiraAssigneeReadiness(jira.projectKey),
+  ])
   const jiraActive = jira.jiraVendor?.found && jira.jiraVendor.appAccess === 'active'
   const slackActive = slack.slackVendor?.found && slack.slackVendor.appAccess === 'active'
 
   return NextResponse.json({
-    ok: jiraActive && slackActive && slack.channelConfigured,
+    ok: jiraActive && jiraAssignee.ready && slackActive && slack.channelConfigured,
     jira: {
       ...jira,
-      createIssue: { endpoint: 'create-issue', declared: true, verifiedBy: 'the next submitted request' },
+      createIssue: {
+        endpoint: 'create-issue',
+        declared: true,
+        assignee: jiraAssignee,
+        verifiedBy: 'the next submitted request',
+      },
     },
     slack,
   })
