@@ -92,6 +92,14 @@ export function JiraWorkItem({
     )
   }
 
+  if (state.jiraSyncStatus === 'PAUSED') {
+    return (
+      <p className="nb-jira-work-item nb-jira-work-item-creating" role="status">
+        Jira creation is paused while the integration is repaired.
+      </p>
+    )
+  }
+
   async function retry() {
     setRetrying(true)
     try {

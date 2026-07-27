@@ -265,6 +265,10 @@ export async function checkJiraAccess(): Promise<JiraAccessCheck> {
   return out
 }
 
+export function jiraAutoCreateEnabled(): boolean {
+  return process.env.JIRA_AUTOCREATE_ENABLED?.trim().toLowerCase() !== 'false'
+}
+
 export async function createJiraIssueForRequest(requestId: string): Promise<void> {
   const prisma = getPrisma()
   const request = await prisma.trainingRequest.findUnique({
@@ -280,6 +284,25 @@ export async function createJiraIssueForRequest(requestId: string): Promise<void
     },
   })
   if (!request || request.jiraIssueKey) return
+
+  if (!jiraAutoCreateEnabled()) {
+    const paused = await prisma.trainingRequest.updateMany({
+      where: { id: requestId, jiraIssueKey: null, jiraSyncStatus: 'QUEUED' },
+      data: { jiraSyncStatus: 'PAUSED', jiraSyncError: null },
+    })
+    if (paused.count === 1) {
+      await prisma.requestAction.create({
+        data: {
+          requestId,
+          action: 'jira_issue_paused',
+          actor: null,
+          source: 'system',
+          metadata: { reason: 'JIRA_AUTOCREATE_ENABLED=false' },
+        },
+      })
+    }
+    return
+  }
 
   const claim = await prisma.trainingRequest.updateMany({
     where: { id: requestId, jiraIssueKey: null, jiraSyncStatus: 'QUEUED' },
