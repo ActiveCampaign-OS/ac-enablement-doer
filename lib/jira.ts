@@ -24,6 +24,7 @@ interface JiraCreateIssueResponse {
 
 interface JiraProjectResponse {
   lead?: { accountId?: string }
+  issueTypes?: Array<{ name?: string }>
   project?: { lead?: { accountId?: string } }
 }
 
@@ -32,6 +33,12 @@ type JiraAssignee = { id: string } | null
 export interface JiraAssigneeReadiness {
   ready: boolean
   source: 'configured-account' | 'project-lead' | 'unavailable'
+  error: string | null
+}
+
+export interface JiraIssueTypeReadiness {
+  ready: boolean | null
+  source: 'project-metadata' | 'metadata-unavailable' | 'unavailable'
   error: string | null
 }
 
@@ -159,8 +166,10 @@ function issueKeyFrom(response: JiraCreateIssueResponse): string | null {
   return issueKey?.trim() || null
 }
 
-function errorDetails(error: unknown): { code: string; message: string } {
-  if (error instanceof AcosError) return { code: error.code, message: error.message }
+function errorDetails(error: unknown): { code: string; message: string; requestId?: string; status?: number } {
+  if (error instanceof AcosError) {
+    return { code: error.code, message: error.message, requestId: error.requestId, status: error.status }
+  }
   if (error instanceof Error) return { code: error.name, message: error.message }
   return { code: 'UNKNOWN_ERROR', message: String(error) }
 }
@@ -191,6 +200,21 @@ export async function checkJiraAssigneeReadiness(projectKey: string): Promise<Ji
   } catch (error) {
     return {
       ready: false,
+      source: 'unavailable',
+      error: error instanceof Error ? error.message : String(error),
+    }
+  }
+}
+
+export async function checkJiraIssueTypeReadiness(projectKey: string, issueType: string): Promise<JiraIssueTypeReadiness> {
+  try {
+    const { data: project } = await callAcos<JiraProjectResponse>('jira', 'get-project', { projectIdOrKey: projectKey })
+    const issueTypes = project.issueTypes?.map((candidate) => candidate.name?.trim()).filter(Boolean) ?? []
+    if (!issueTypes.length) return { ready: null, source: 'metadata-unavailable', error: null }
+    return { ready: issueTypes.includes(issueType), source: 'project-metadata', error: null }
+  } catch (error) {
+    return {
+      ready: null,
       source: 'unavailable',
       error: error instanceof Error ? error.message : String(error),
     }
@@ -297,10 +321,11 @@ export async function createJiraIssueForRequest(requestId: string): Promise<void
       },
     })
   } catch (error) {
-    const { code, message } = errorDetails(error)
+    const { code, message, requestId, status } = errorDetails(error)
     const jiraSyncStatus = requiresApproval(code) ? 'PENDING_APPROVAL' : 'FAILED'
+    const requestTrace = requestId ? `; acosRequest=${requestId}` : ''
     const jiraSyncError = truncate(
-      `${code}: ${message} | project=${projectKey}; issueType=${issueType}; assignee=${assigneeSource}`,
+      `${code}: ${message} | project=${projectKey}; issueType=${issueType}; assignee=${assigneeSource}${requestTrace}`,
       1000
     )
     console.error(`[jira] ${requestId} create-issue failed: ${jiraSyncError}`)
@@ -315,7 +340,7 @@ export async function createJiraIssueForRequest(requestId: string): Promise<void
             action: jiraSyncStatus === 'PENDING_APPROVAL' ? 'jira_issue_pending_approval' : 'jira_issue_failed',
             actor: null,
             source: 'system',
-            metadata: { code, message: truncate(message, 1000) },
+            metadata: { code, message: truncate(message, 1000), requestId: requestId ?? null, status: status ?? null },
           },
         },
       },
