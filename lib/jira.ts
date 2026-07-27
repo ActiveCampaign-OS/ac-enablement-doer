@@ -321,9 +321,9 @@ export async function createJiraIssueForRequest(requestId: string): Promise<void
       },
     })
   } catch (error) {
-    const { code, message, requestId, status } = errorDetails(error)
+    const { code, message, requestId: acosRequestId, status } = errorDetails(error)
     const jiraSyncStatus = requiresApproval(code) ? 'PENDING_APPROVAL' : 'FAILED'
-    const requestTrace = requestId ? `; acosRequest=${requestId}` : ''
+    const requestTrace = acosRequestId ? `; acosRequest=${acosRequestId}` : ''
     const jiraSyncError = truncate(
       `${code}: ${message} | project=${projectKey}; issueType=${issueType}; assignee=${assigneeSource}${requestTrace}`,
       1000
@@ -340,7 +340,7 @@ export async function createJiraIssueForRequest(requestId: string): Promise<void
             action: jiraSyncStatus === 'PENDING_APPROVAL' ? 'jira_issue_pending_approval' : 'jira_issue_failed',
             actor: null,
             source: 'system',
-            metadata: { code, message: truncate(message, 1000), requestId: requestId ?? null, status: status ?? null },
+            metadata: { code, message: truncate(message, 1000), requestId: acosRequestId ?? null, status: status ?? null },
           },
         },
       },
