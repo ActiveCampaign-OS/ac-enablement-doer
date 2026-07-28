@@ -28,7 +28,7 @@ interface JiraProjectResponse {
   project?: { lead?: { accountId?: string } }
 }
 
-type JiraAssignee = { id: string } | null
+type JiraAssignee = { accountId: string } | null
 
 export interface JiraAssigneeReadiness {
   ready: boolean
@@ -185,12 +185,12 @@ function projectLeadAccountId(project: JiraProjectResponse): string | null {
 
 async function resolveDefaultAssignee(projectKey: string): Promise<{ assignee: JiraAssignee; source: JiraAssigneeReadiness['source'] }> {
   const configuredAssignee = process.env.JIRA_ASSIGNEE_ACCOUNT_ID?.trim()
-  if (configuredAssignee) return { assignee: { id: configuredAssignee }, source: 'configured-account' }
+  if (configuredAssignee) return { assignee: { accountId: configuredAssignee }, source: 'configured-account' }
 
   const { data: project } = await callAcos<JiraProjectResponse>('jira', 'get-project', { projectIdOrKey: projectKey })
   const accountId = projectLeadAccountId(project)
   if (!accountId) throw new Error(`Jira project ${projectKey} has no project lead account ID for default assignment`)
-  return { assignee: { id: accountId }, source: 'project-lead' }
+  return { assignee: { accountId }, source: 'project-lead' }
 }
 
 export async function checkJiraAssigneeReadiness(projectKey: string): Promise<JiraAssigneeReadiness> {
