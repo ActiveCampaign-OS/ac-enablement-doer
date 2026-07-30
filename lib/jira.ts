@@ -1,5 +1,5 @@
 import type { Assessment, AssetArtifact, AssetBuild, RequestMessage, TrainingRequest } from '@prisma/client'
-import { AcosError, callAcos, listVendors } from './acos-client'
+import { AcosError, callAcos, getVendorDetails, listVendors } from './acos-client'
 import { getPrisma } from './prisma'
 
 const JIRA_BASE_URL = 'https://activecampaign.atlassian.net'
@@ -23,9 +23,18 @@ interface JiraCreateIssueResponse {
 }
 
 interface JiraProjectResponse {
+  id?: string
+  key?: string
+  projectTypeKey?: string
   lead?: { accountId?: string }
   issueTypes?: Array<{ name?: string }>
   project?: { lead?: { accountId?: string } }
+}
+
+interface JiraVendorEndpoint {
+  slug?: string
+  method?: string
+  description?: string
 }
 
 type JiraAssignee = { accountId: string } | null
@@ -39,6 +48,17 @@ export interface JiraAssigneeReadiness {
 export interface JiraIssueTypeReadiness {
   ready: boolean | null
   source: 'project-metadata' | 'metadata-unavailable' | 'unavailable'
+  error: string | null
+}
+
+export interface JiraCreateContractReadiness {
+  ready: boolean
+  projectType: string | null
+  createIssueEndpoint: boolean
+  createMetadataEndpoint: boolean
+  serviceDeskRequestEndpoint: boolean
+  serviceDeskMetadataEndpoint: boolean
+  requirements: string[]
   error: string | null
 }
 
@@ -216,6 +236,68 @@ export async function checkJiraIssueTypeReadiness(projectKey: string, issueType:
     return {
       ready: null,
       source: 'unavailable',
+      error: error instanceof Error ? error.message : String(error),
+    }
+  }
+}
+
+function vendorEndpoints(details: Record<string, unknown>): JiraVendorEndpoint[] {
+  const endpoints = details.endpoints
+  return Array.isArray(endpoints)
+    ? endpoints.filter((endpoint): endpoint is JiraVendorEndpoint => !!endpoint && typeof endpoint === 'object')
+    : []
+}
+
+function hasEndpoint(endpoints: JiraVendorEndpoint[], matcher: (endpoint: JiraVendorEndpoint) => boolean): boolean {
+  return endpoints.some(matcher)
+}
+
+export async function checkJiraCreateContractReadiness(projectKey: string): Promise<JiraCreateContractReadiness> {
+  try {
+    const [{ data: project }, vendorDetails] = await Promise.all([
+      callAcos<JiraProjectResponse>('jira', 'get-project', { projectIdOrKey: projectKey }),
+      getVendorDetails('jira'),
+    ])
+    const endpoints = vendorEndpoints(vendorDetails)
+    const createIssueEndpoint = hasEndpoint(endpoints, (endpoint) => endpoint.slug === 'create-issue')
+    const createMetadataEndpoint = hasEndpoint(endpoints, (endpoint) => /create issue metadata/i.test(endpoint.description ?? ''))
+    const serviceDeskRequestEndpoint = hasEndpoint(endpoints, (endpoint) => /create.*(customer|service desk).*request/i.test(endpoint.description ?? ''))
+    const serviceDeskMetadataEndpoint = hasEndpoint(endpoints, (endpoint) => /request type fields|service desk.*request types|list service desks/i.test(endpoint.description ?? ''))
+    const projectType = project.projectTypeKey?.trim() || null
+    const requirements: string[] = []
+
+    if (!createIssueEndpoint) requirements.push('Enable the ACOS Jira create-issue endpoint.')
+    if (!createMetadataEndpoint) {
+      requirements.push('Add Jira create-issue metadata so required fields can be validated before submission.')
+    }
+    if (projectType === 'service_desk') {
+      if (!serviceDeskRequestEndpoint) {
+        requirements.push('Add a JSM customer-request create endpoint if GEP must be created through the service desk portal.')
+      }
+      if (!serviceDeskMetadataEndpoint) {
+        requirements.push('Add JSM service-desk, request-type, and request-type-field discovery endpoints to resolve serviceDeskId, requestTypeId, and required form fields.')
+      }
+    }
+
+    return {
+      ready: requirements.length === 0,
+      projectType,
+      createIssueEndpoint,
+      createMetadataEndpoint,
+      serviceDeskRequestEndpoint,
+      serviceDeskMetadataEndpoint,
+      requirements,
+      error: null,
+    }
+  } catch (error) {
+    return {
+      ready: false,
+      projectType: null,
+      createIssueEndpoint: false,
+      createMetadataEndpoint: false,
+      serviceDeskRequestEndpoint: false,
+      serviceDeskMetadataEndpoint: false,
+      requirements: ['Inspect the live ACOS Jira catalog and project metadata before enabling Jira auto-create.'],
       error: error instanceof Error ? error.message : String(error),
     }
   }

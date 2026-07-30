@@ -159,3 +159,36 @@ export async function listVendors(): Promise<unknown[]> {
   if (Array.isArray(body.data)) return body.data
   return body.vendors ?? []
 }
+
+export async function getVendorDetails(vendor: string): Promise<Record<string, unknown>> {
+  const url = process.env.ACOS_DATA_URL
+  const appId = process.env.ACOS_APP_ID
+  const apiKey = process.env.ACOS_API_KEY
+  if (!url || !appId || !apiKey) {
+    throw new AcosError('ENV_MISSING', 'ACOS env vars not set')
+  }
+
+  const resp = await fetch(`${url.replace(/\/$/, '')}/v1/vendors/${encodeURIComponent(vendor)}`, {
+    headers: {
+      'X-ACOS-App-Id': appId,
+      'X-ACOS-Api-Key': apiKey,
+      'Content-Type': 'application/json',
+    },
+    signal: AbortSignal.timeout(15000),
+  })
+  if (!resp.ok) {
+    throw new AcosError(
+      `HTTP_${resp.status}`,
+      `getVendorDetails(${vendor}) failed: ${resp.status}`,
+      undefined,
+      resp.status
+    )
+  }
+
+  const body = (await resp.json()) as { data?: unknown } | unknown
+  const details = Array.isArray(body) ? null : (body as { data?: unknown }).data ?? body
+  if (!details || typeof details !== 'object' || Array.isArray(details)) {
+    throw new AcosError('INVALID_RESPONSE', `getVendorDetails(${vendor}) returned an unexpected shape`)
+  }
+  return details as Record<string, unknown>
+}
