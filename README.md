@@ -54,21 +54,15 @@ DECLINED (requires category + reason — feeds future assessments as negative ex
    - `SPINE_CONFLUENCE_PAGE_ID` (optional) — page id of the Spine doc to enable the weekly
      refresh cron. Also needs the `confluence` vendor appAccess grant (check
      `/api/diagnostics/confluence`).
-  - **Jira creation** — submissions create a `Global Enablement Programming Request` in
-    project `GEP` through the ACOS Jira connection. The deploy files the required
-    `jira:create-issue` access request; an ACOS Data admin must approve it before the first
-    ticket can be created. `JIRA_PROJECT_KEY` and `JIRA_ISSUE_TYPE` can override the defaults.
-    The app sends ACOS's flat `projectKey` create contract and labels the issue
-    `enablement-doer`. It assigns to the GEP Jira project lead by default (set that lead to
-    Emily VanGilder), because GEP does not allow unassigned issues. Set
-    `JIRA_ASSIGNEE_ACCOUNT_ID` to pin assignment to a specific Jira account instead. The
-    integrations diagnostic checks this assignment path without creating an issue; it only
-    reports whether a configured account or project lead can be resolved.
-     The app does not yet synchronize follow-up answers into an existing Jira issue. The live ACOS
-     catalog lists `update-issue`, `add-comment`, and `add-request-participant`, but their exact
-     payload contracts have not been validated for GEP and cannot be exercised until the initial
-     JSM request-creation path is available. Follow-up answers therefore remain in the linked
-     request record for now.
+  - **Jira creation (paused for GEP)** — the app targets the `Global Enablement Programming
+    Request` type in project `GEP`, but GEP is a Jira Service Management project and the managed
+    ACOS catalog does not yet expose the JSM customer-request creation and required-field
+    discovery contract. `JIRA_AUTOCREATE_ENABLED=false` must remain set until that gateway work
+    and one guarded pilot are complete. `JIRA_PROJECT_KEY`, `JIRA_ISSUE_TYPE`, and
+    `JIRA_ASSIGNEE_ACCOUNT_ID` preserve the intended project, issue type, and fallback owner
+    configuration; they do not make the current generic endpoint safe for GEP. See
+    `docs/spark-jira-jsm-gateway-request.md` for the copy-ready ACOS request. Follow-up answers
+    remain in the linked Enablement Do-er record until the initial JSM request path is verified.
    - **Asset storage** — no secret or AWS credentials are required. The
      `@aws-sdk/client-s3` dependency makes Spark provision a private bucket and inject
      `S3_BUCKET`; the app uses its pod IAM role. Artifacts are only downloadable by the
