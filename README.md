@@ -64,9 +64,11 @@ DECLINED (requires category + reason — feeds future assessments as negative ex
     `JIRA_ASSIGNEE_ACCOUNT_ID` to pin assignment to a specific Jira account instead. The
     integrations diagnostic checks this assignment path without creating an issue; it only
     reports whether a configured account or project lead can be resolved.
-     The current ACOS Jira catalog does not expose issue-update, watcher, or request-participant
-     writes, so follow-up answers remain in the linked request until those managed endpoints are
-     added and approved.
+     The app does not yet synchronize follow-up answers into an existing Jira issue. The live ACOS
+     catalog lists `update-issue`, `add-comment`, and `add-request-participant`, but their exact
+     payload contracts have not been validated for GEP and cannot be exercised until the initial
+     JSM request-creation path is available. Follow-up answers therefore remain in the linked
+     request record for now.
    - **Asset storage** — no secret or AWS credentials are required. The
      `@aws-sdk/client-s3` dependency makes Spark provision a private bucket and inject
      `S3_BUCKET`; the app uses its pod IAM role. Artifacts are only downloadable by the

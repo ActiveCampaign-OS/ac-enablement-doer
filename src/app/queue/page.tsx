@@ -1,7 +1,10 @@
 import Link from 'next/link'
+import { headers } from 'next/headers'
+import { notFound } from 'next/navigation'
 import { getPrisma } from '@/lib/prisma'
 import { StatusChip } from '../requests/StatusChip'
 import { QueueActions } from './QueueActions'
+import { isOperatorEmail } from '@/lib/permissions'
 import type { RequestStatus } from '@prisma/client'
 
 export const dynamic = 'force-dynamic'
@@ -16,6 +19,10 @@ const GROUPS: Array<{ title: string; statuses: RequestStatus[]; note?: string }>
 ]
 
 export default async function QueuePage() {
+  const h = await headers()
+  const email = (h.get('x-auth-request-email') || h.get('cf-access-authenticated-user-email') || '').trim().toLowerCase()
+  if (!email || !isOperatorEmail(email).isOperator) notFound()
+
   const prisma = getPrisma()
   const requests = await prisma.trainingRequest.findMany({
     where: { status: { notIn: ['ARCHIVED', 'DECLINED', 'DELIVERED'] } },

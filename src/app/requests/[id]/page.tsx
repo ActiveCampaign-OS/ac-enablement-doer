@@ -1,4 +1,5 @@
 import { notFound } from 'next/navigation'
+import { headers } from 'next/headers'
 import { getPrisma } from '@/lib/prisma'
 import { StatusChip } from '../StatusChip'
 import { RequestActions } from './RequestActions'
@@ -9,6 +10,7 @@ import { AssetBuildPanel } from './AssetBuildPanel'
 import { DataWizardBrief } from './DataWizardBrief'
 import { DELIVERABLE_AUTONOMY } from '@/lib/state-machine'
 import { buildDataWizardBrief } from '@/lib/data-wizard'
+import { canAccessRequest } from '@/lib/permissions'
 import type { DeliverableType } from '@prisma/client'
 import type { ReactNode } from 'react'
 
@@ -72,6 +74,10 @@ export default async function RequestDetailPage({
     },
   })
   if (!request) notFound()
+
+  const h = await headers()
+  const email = (h.get('x-auth-request-email') || h.get('cf-access-authenticated-user-email') || '').trim().toLowerCase()
+  if (!canAccessRequest(email || null, request.requesterEmail)) notFound()
 
   const latest = request.assessments[0] ?? null
   const recs = (latest?.recommendations ?? []) as unknown as Recommendation[]

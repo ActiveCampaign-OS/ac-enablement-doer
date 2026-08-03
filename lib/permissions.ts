@@ -43,6 +43,11 @@ export function isOperatorEmail(email: string | null): { isOperator: boolean; en
   return { isOperator: !!email && list.has(email), enforced }
 }
 
+export function canAccessRequest(email: string | null, requesterEmail: string): boolean {
+  if (!email) return false
+  return email === requesterEmail.trim().toLowerCase() || isOperatorEmail(email).isOperator
+}
+
 export interface WriteCheck {
   ok: boolean
   email: string | null

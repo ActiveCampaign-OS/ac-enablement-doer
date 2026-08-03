@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { after } from 'next/server'
 import { getPrisma } from '@/lib/prisma'
-import { getActorEmail, checkWrite, writeForbidden, isOperatorEmail } from '@/lib/permissions'
+import { canAccessRequest, getActorEmail, checkWrite, writeForbidden, isOperatorEmail } from '@/lib/permissions'
 import { runAssessment } from '@/lib/spine/assess'
 
 export const dynamic = 'force-dynamic'
@@ -27,6 +27,9 @@ export async function POST(
   const prisma = getPrisma()
   const request = await prisma.trainingRequest.findUnique({ where: { id } })
   if (!request) return NextResponse.json({ error: 'Not found' }, { status: 404 })
+  if (!canAccessRequest(email, request.requesterEmail)) {
+    return NextResponse.json({ error: 'Not found' }, { status: 404 })
+  }
 
   const { isOperator } = isOperatorEmail(email)
   const role =

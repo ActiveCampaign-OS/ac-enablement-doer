@@ -1,6 +1,8 @@
 import type { Metadata } from 'next'
 import Link from 'next/link'
+import { headers } from 'next/headers'
 import { PixelStudio } from './PixelStudio'
+import { isOperatorEmail } from '@/lib/permissions'
 import './globals.css'
 
 // NOTE: no next/font here — its build-time font fetch fails inside the
@@ -12,10 +14,12 @@ export const metadata: Metadata = {
     'Support-needs intake and Enablement routing agent assessed against the Design to Impact Spine',
 }
 
-function TopNav() {
+async function TopNav() {
+  const h = await headers()
+  const email = (h.get('x-auth-request-email') || h.get('cf-access-authenticated-user-email') || '').trim().toLowerCase()
   const links = [
     { href: '/requests', label: 'Requests' },
-    { href: '/queue', label: 'Queue' },
+    ...(email && isOperatorEmail(email).isOperator ? [{ href: '/queue', label: 'Queue' }] : []),
   ]
   return (
     <header className="sticky top-0 z-10 nb-topbar">

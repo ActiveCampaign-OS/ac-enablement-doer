@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getPrisma } from '@/lib/prisma'
-import { getActorEmail, checkWrite, writeForbidden, checkOperator, operatorForbidden } from '@/lib/permissions'
+import { canAccessRequest, getActorEmail, checkWrite, writeForbidden, checkOperator, operatorForbidden } from '@/lib/permissions'
 import { DECLINE_CATEGORIES, DELIVERABLE_AUTONOMY, canTransition } from '@/lib/state-machine'
 import type { DeliverableType } from '@prisma/client'
 import type { DeclineCategory as DC } from '@/lib/state-machine'
@@ -8,7 +8,7 @@ import type { DeclineCategory as DC } from '@/lib/state-machine'
 export const dynamic = 'force-dynamic'
 
 export async function GET(
-  _req: NextRequest,
+  req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
   const { id } = await params
@@ -23,6 +23,9 @@ export async function GET(
     },
   })
   if (!request) return NextResponse.json({ error: 'Not found' }, { status: 404 })
+  if (!canAccessRequest(getActorEmail(req), request.requesterEmail)) {
+    return NextResponse.json({ error: 'Not found' }, { status: 404 })
+  }
   return NextResponse.json(request)
 }
 
@@ -44,6 +47,9 @@ export async function PATCH(
 
   const request = await prisma.trainingRequest.findUnique({ where: { id } })
   if (!request) return NextResponse.json({ error: 'Not found' }, { status: 404 })
+  if (!canAccessRequest(actor, request.requesterEmail)) {
+    return NextResponse.json({ error: 'Not found' }, { status: 404 })
+  }
 
   // --- Decline (requires category + reason; writes RequestFeedback) ---
   if (body.decline) {
@@ -132,6 +138,8 @@ export async function PATCH(
 
   // --- Assignment ---
   if ('assignedTo' in body) {
+    const op = checkOperator(req)
+    if (!op.ok) return operatorForbidden(op.email)
     const assignedTo = body.assignedTo ? String(body.assignedTo).trim().toLowerCase() : null
     const updated = await prisma.trainingRequest.update({
       where: { id },

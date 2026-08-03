@@ -2,6 +2,7 @@ import Link from 'next/link'
 import { headers } from 'next/headers'
 import { getPrisma } from '@/lib/prisma'
 import { StatusChip } from './StatusChip'
+import { isOperatorEmail } from '@/lib/permissions'
 import type { RequestStatus } from '@prisma/client'
 
 export const dynamic = 'force-dynamic'
@@ -21,13 +22,14 @@ export default async function RequestsPage({
     .trim()
     .toLowerCase()
 
-  const all = params.all === '1'
+  const canViewAll = !!email && isOperatorEmail(email).isOperator
+  const all = params.all === '1' && canViewAll
   const status = params.status as RequestStatus | undefined
 
   const prisma = getPrisma()
   const requests = await prisma.trainingRequest.findMany({
     where: {
-      ...(all ? {} : email ? { requesterEmail: email } : {}),
+      ...(all ? {} : { requesterEmail: email }),
       ...(status ? { status } : {}),
     },
     orderBy: { lastActivityAt: 'desc' },
@@ -45,12 +47,14 @@ export default async function RequestsPage({
           </h1>
         </div>
         <div className="flex items-center gap-3">
-          <Link
-            href={all ? '/requests' : '/requests?all=1'}
-            className="nb-button nb-button-secondary"
-          >
-            {all ? 'Mine only' : 'View all'}
-          </Link>
+          {canViewAll && (
+            <Link
+              href={all ? '/requests' : '/requests?all=1'}
+              className="nb-button nb-button-secondary"
+            >
+              {all ? 'Mine only' : 'View all'}
+            </Link>
+          )}
           <Link
             href="/requests/new"
             className="nb-button nb-button-primary"

@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { after } from 'next/server'
 import { getPrisma } from '@/lib/prisma'
-import { getActorEmail, checkWrite, writeForbidden, checkOperator, operatorForbidden } from '@/lib/permissions'
+import { canAccessRequest, getActorEmail, checkWrite, writeForbidden, checkOperator, operatorForbidden } from '@/lib/permissions'
 import { STATUS_TRANSITIONS, DELIVERABLE_AUTONOMY, canTransition } from '@/lib/state-machine'
 import { notifySlack, requestBlocks } from '@/lib/slack'
 import { createJiraIssueForRequest } from '@/lib/jira'
@@ -32,6 +32,9 @@ export async function POST(
   const prisma = getPrisma()
   const request = await prisma.trainingRequest.findUnique({ where: { id } })
   if (!request) return NextResponse.json({ error: 'Not found' }, { status: 404 })
+  if (!canAccessRequest(actor, request.requesterEmail)) {
+    return NextResponse.json({ error: 'Not found' }, { status: 404 })
+  }
 
   if (action === 'DATA_WIZARD_BRIEF_PREPARED') {
     const op = checkOperator(req)

@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { after } from 'next/server'
 import { getPrisma } from '@/lib/prisma'
-import { getActorEmail, checkWrite, writeForbidden } from '@/lib/permissions'
+import { getActorEmail, checkWrite, isOperatorEmail, operatorForbidden, writeForbidden } from '@/lib/permissions'
 import { runAssessment } from '@/lib/spine/assess'
 import { notifySlack, requestBlocks } from '@/lib/slack'
 import { parsePixelDoodle } from '@/lib/pixel-doodle'
@@ -38,8 +38,11 @@ export async function GET(req: NextRequest) {
   const all = url.searchParams.get('all') === '1'
   const status = url.searchParams.get('status') as RequestStatus | null
 
+  if (!email) return NextResponse.json({ error: 'SSO identity is required' }, { status: 401 })
+  if (all && !isOperatorEmail(email).isOperator) return operatorForbidden(email)
+
   const where = {
-    ...(all ? {} : email ? { requesterEmail: email } : {}),
+    ...(all ? {} : { requesterEmail: email }),
     ...(status ? { status } : {}),
   }
   const requests = await prisma.trainingRequest.findMany({
