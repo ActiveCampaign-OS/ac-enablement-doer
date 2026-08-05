@@ -61,9 +61,11 @@ DECLINED (requires category + reason — feeds future assessments as negative ex
     approve those endpoint grants in Spark → Data → Access before a pilot. Keep
     `JIRA_AUTOCREATE_ENABLED=false` until the grants are active and one guarded synthetic request
     proves Jira creation plus Slack delivery. `JIRA_PROJECT_KEY` and `JIRA_REQUEST_TYPE` override
-    the defaults (`JIRA_ISSUE_TYPE` remains a compatibility fallback). The requester is added via
-    `add-request-participant`; the app intentionally does not use `raiseOnBehalfOf` until the
-    `ac-spark` Jira account's GEP Service Desk Agent role is confirmed.
+    the defaults (`JIRA_ISSUE_TYPE` remains a compatibility fallback). New requests are explicitly
+    raised on behalf of `evangilder@activecampaign.com` by default; override that reporter with
+    `JIRA_DEFAULT_REPORTER_EMAIL`. The original requester is included as a participant at creation
+    and verified again afterward. `JIRA_COMMENT_SYNC_ENABLED=false` is an emergency-only switch to
+    pause Jira comment writes without disabling already-created records.
    - **Asset storage** — no secret or AWS credentials are required. The
      `@aws-sdk/client-s3` dependency makes Spark provision a private bucket and inject
      `S3_BUCKET`; the app uses its pod IAM role. Artifacts are only downloadable by the

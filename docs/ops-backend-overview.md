@@ -82,9 +82,11 @@ The intended Jira project is **GEP / Global Enablement Programming**, using the 
 - **Autonomous asset:** the worker creates the Jira item only after it has produced the review-ready draft.
 - **Human-only handoff:** the app attempts Jira creation once the stakeholder has confirmed the handoff.
 
-When creation succeeds, the app saves the Jira key and clickable URL on the request. It resolves the current GEP service desk, request type, and portal fields immediately before the write; all JSM field text is plain text, not Atlassian Document Format. The description is designed to be a complete handoff record: intake answers, assessment, stakeholder/agent conversation, asset summary, draft excerpt, and an authenticated asset-download link where applicable. The app verifies the resulting customer request, then resolves and adds the requester as a JSM participant. Later stakeholder messages sync as portal-visible comments; operator messages sync as internal comments.
+When creation succeeds, the app saves the Jira key and clickable URL on the request. It resolves the current GEP service desk, request type, and portal fields immediately before the write; all JSM field text is plain text, not Atlassian Document Format. Every available portal field is mapped from the intake. Because the current GEP portal does not expose every intake field, the app also writes a complete internal handoff snapshot containing intake answers, assessment, stakeholder/agent conversation, asset summary, draft excerpt, and an authenticated asset-download link where applicable. The request is explicitly raised on behalf of Emily Van Gilder by default, while the actual submitter is retained as a participant. Later stakeholder messages sync as portal-visible comments; operator messages, assignments, scope overrides, declines, and lifecycle changes sync as internal comments.
 
-Jira sync is guarded by `JIRA_AUTOCREATE_ENABLED`, which defaults to **disabled** and remains disabled for the pilot. The JSM endpoint grants must be active first. The app does not use `raiseOnBehalfOf` until the `ac-spark` account's GEP Service Desk Agent role is confirmed.
+Jira creation is guarded by `JIRA_AUTOCREATE_ENABLED`, which defaults to **disabled**. Existing-record comment sync remains enabled unless `JIRA_COMMENT_SYNC_ENABLED=false` is set. The JSM endpoint grants must be active first. `raiseOnBehalfOf` requires the `ac-spark` account to hold the GEP Service Desk Agent role; the integration fails closed and leaves a clear Jira sync error if that role or Emily's Jira account is unavailable.
+
+JSM's **Raised by** reporter is distinct from Jira's internal **Assignee**. The current approved JSM API can set the reporter and participants but cannot update an issue assignee after portal creation. Configure GEP's assignment rule to default the internal assignee to Emily, or request an ACOS `jira:assign-issue` write endpoint before making the application assign Jira's Assignee programmatically.
 
 ## Current Jira pilot boundary
 
@@ -93,8 +95,8 @@ The managed ACOS Jira gateway now exposes the native JSM service-desk, request-t
 The remaining gates are deliberate:
 
 - Spark must approve the three declared Jira write endpoint grants.
-- GEP administration must confirm whether `ac-spark` has the Service Desk Agent role before `raiseOnBehalfOf` can ever be enabled. The app currently uses the separate participant endpoint instead.
-- One explicitly approved synthetic request must verify the Jira record, requester participant, follow-up comment, and Slack delivery.
+- GEP administration must confirm the `ac-spark` account has the Service Desk Agent role required by `raiseOnBehalfOf`.
+- One explicitly approved synthetic request must verify Emily as the JSM reporter, the requester participant, full internal handoff comment, follow-up comments, and Slack delivery.
 
 **Idempotency note:** the gateway can protect a fast retry with the same caller key, but its cache is per pod. The app never treats that as a distributed deduplication guarantee: after a network-uncertain create, an operator must inspect Jira before retrying.
 

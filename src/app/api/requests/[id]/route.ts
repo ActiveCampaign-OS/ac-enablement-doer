@@ -1,7 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { after } from 'next/server'
 import { getPrisma } from '@/lib/prisma'
 import { canAccessRequest, getActorEmail, checkWrite, writeForbidden, checkOperator, operatorForbidden } from '@/lib/permissions'
 import { DECLINE_CATEGORIES, DELIVERABLE_AUTONOMY, canTransition } from '@/lib/state-machine'
+import { syncJiraContextForRequest } from '@/lib/jira'
 import type { DeliverableType } from '@prisma/client'
 import type { DeclineCategory as DC } from '@/lib/state-machine'
 
@@ -85,6 +87,16 @@ export async function PATCH(
         },
       },
     })
+    if (updated.jiraIssueKey) {
+      after(async () => {
+        await syncJiraContextForRequest(id, {
+          eventKey: `declined:${updated.updatedAt.toISOString()}`,
+          heading: 'Enablement Do-er lifecycle update',
+          details: `Status: ${request.status} → DECLINED\nReason: ${reason}`,
+          actor,
+        })
+      })
+    }
     return NextResponse.json(updated)
   }
 
@@ -133,6 +145,21 @@ export async function PATCH(
         },
       },
     })
+    if (updated.jiraIssueKey) {
+      after(async () => {
+        await syncJiraContextForRequest(id, {
+          eventKey: `deliverable:${updated.updatedAt.toISOString()}`,
+          heading: 'Enablement Do-er scope update',
+          details: [
+            `Confirmed deliverable: ${confirmedType}`,
+            isOverride ? `Operator override reason: ${overrideReason}` : null,
+          ]
+            .filter(Boolean)
+            .join('\n'),
+          actor,
+        })
+      })
+    }
     return NextResponse.json(updated)
   }
 
@@ -156,6 +183,18 @@ export async function PATCH(
         },
       },
     })
+    if (updated.jiraIssueKey) {
+      after(async () => {
+        await syncJiraContextForRequest(id, {
+          eventKey: `queue-owner:${updated.updatedAt.toISOString()}`,
+          heading: 'Enablement Do-er queue owner update',
+          details: assignedTo
+            ? `Enablement Do-er queue owner: ${assignedTo}`
+            : 'The Enablement Do-er queue owner was cleared.',
+          actor,
+        })
+      })
+    }
     return NextResponse.json(updated)
   }
 

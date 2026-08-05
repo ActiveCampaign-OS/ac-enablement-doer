@@ -4,7 +4,7 @@ import { getPrisma } from '@/lib/prisma'
 import { canAccessRequest, getActorEmail, checkWrite, writeForbidden, checkOperator, operatorForbidden } from '@/lib/permissions'
 import { STATUS_TRANSITIONS, DELIVERABLE_AUTONOMY, canTransition } from '@/lib/state-machine'
 import { notifySlack, requestBlocks } from '@/lib/slack'
-import { createJiraIssueForRequest } from '@/lib/jira'
+import { createJiraIssueForRequest, syncJiraContextForRequest } from '@/lib/jira'
 import { logOutcome } from '@/lib/outcomes'
 import type { DeliverableType, RequestStatus } from '@prisma/client'
 
@@ -289,6 +289,20 @@ export async function POST(
     }
 
     after(async () => {
+      if (updated.jiraIssueKey) {
+        await syncJiraContextForRequest(id, {
+          eventKey: `status:${request.status}:${nextStatus}:${updated.updatedAt.toISOString()}`,
+          heading: 'Enablement Do-er lifecycle update',
+          details: [
+            `Status: ${request.status} → ${nextStatus}`,
+            updated.confirmedType ? `Confirmed deliverable: ${updated.confirmedType}` : null,
+            updated.assignedTo ? `Enablement Do-er queue owner: ${updated.assignedTo}` : null,
+          ]
+            .filter(Boolean)
+            .join('\n'),
+          actor,
+        })
+      }
       if (handoffCreated) {
         const notifications = await Promise.allSettled([
           notifySlack(

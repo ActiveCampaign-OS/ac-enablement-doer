@@ -6,6 +6,7 @@ import { getPrisma } from './prisma'
 const JIRA_BASE_URL = 'https://activecampaign.atlassian.net'
 const DEFAULT_PROJECT_KEY = 'GEP'
 const DEFAULT_REQUEST_TYPE = 'Global Enablement Programming Request'
+const DEFAULT_REPORTER_EMAIL = 'evangilder@activecampaign.com'
 const MAX_DESCRIPTION_LENGTH = 7500
 
 interface JiraProjectResponse {
@@ -27,6 +28,7 @@ export interface JiraCreateContractReadiness {
   serviceDeskId: string | null
   requestTypeId: string | null
   requiredFields: string[]
+  defaultReporter: { email: string; resolved: boolean; error: string | null }
   requirements: string[]
   error: string | null
 }
@@ -181,6 +183,17 @@ function descriptionText(request: JiraRequest): string {
   return description
 }
 
+function contextCommentText(request: JiraRequest, heading: string, details?: string): string {
+  return [
+    heading,
+    details?.trim() ? `Update\n${details.trim()}` : null,
+    'Current Enablement Do-er record (internal)',
+    descriptionText(request),
+  ]
+    .filter((section): section is string => !!section)
+    .join('\n\n')
+}
+
 function errorDetails(error: unknown): { code: string; message: string; requestId?: string; status?: number } {
   if (error instanceof AcosError) {
     return { code: error.code, message: error.message, requestId: error.requestId, status: error.status }
@@ -300,6 +313,7 @@ function endpointAvailability(endpoints: JiraVendorEndpoint[]): Record<string, b
 export async function checkJiraCreateContractReadiness(projectKey: string, requestTypeName: string): Promise<JiraCreateContractReadiness> {
   let projectType: string | null = null
   let endpointChecks: Record<string, boolean> = {}
+  const defaultReporter = { email: jiraDefaultReporterEmail(), resolved: false, error: null as string | null }
   try {
     const [{ data: project }, vendorDetails] = await Promise.all([
       callAcos<JiraProjectResponse>('jira', 'get-project', { projectIdOrKey: projectKey }),
@@ -319,20 +333,31 @@ export async function checkJiraCreateContractReadiness(projectKey: string, reque
         serviceDeskId: null,
         requestTypeId: null,
         requiredFields: [],
+        defaultReporter,
         requirements,
         error: null,
       }
     }
     const contract = await resolveJsmContract(projectKey, requestTypeName)
+    try {
+      await resolveJiraAccountId(jiraClient(), defaultReporter.email, 'default reporter')
+      defaultReporter.resolved = true
+    } catch (error) {
+      defaultReporter.error = error instanceof Error ? error.message : String(error)
+    }
     const unmappedRequired = missingRequiredJsmFields(contract.fields, null)
     return {
-      ready: unmappedRequired.length === 0,
+      ready: unmappedRequired.length === 0 && defaultReporter.resolved,
       projectType,
       endpointAvailability: endpointChecks,
       serviceDeskId: contract.serviceDeskId,
       requestTypeId: contract.requestTypeId,
       requiredFields: contract.fields.filter((field) => field.required).map((field) => field.name ?? field.fieldId ?? 'unknown'),
-      requirements: unmappedRequired.length ? [`Add Enablement Do-er mappings for required JSM fields: ${unmappedRequired.join(', ')}.`] : [],
+      defaultReporter,
+      requirements: [
+        ...(unmappedRequired.length ? [`Add Enablement Do-er mappings for required JSM fields: ${unmappedRequired.join(', ')}.`] : []),
+        ...(!defaultReporter.resolved ? [`Resolve the Jira account for default reporter ${defaultReporter.email}.`] : []),
+      ],
       error: null,
     }
   } catch (error) {
@@ -343,6 +368,7 @@ export async function checkJiraCreateContractReadiness(projectKey: string, reque
       serviceDeskId: null,
       requestTypeId: null,
       requiredFields: [],
+      defaultReporter,
       requirements: ['Inspect the live GEP JSM service desk, request type, and required-field contract before enabling Jira auto-create.'],
       error: error instanceof Error ? error.message : String(error),
     }
@@ -417,11 +443,20 @@ function jiraAccountId(data: unknown, email: string): string | null {
   return candidate ? stringValue(candidate.accountId) : null
 }
 
-async function resolveRequesterAccountId(client: AcosDataClient, email: string): Promise<string> {
+async function resolveJiraAccountId(client: AcosDataClient, email: string, label: string): Promise<string> {
   const { data } = await client.jira.findUsers({ query: email, maxResults: 10 })
   const accountId = jiraAccountId(data, email)
-  if (!accountId) throw new Error(`Jira account lookup found no account ID for ${email}`)
+  if (!accountId) throw new Error(`Jira account lookup found no account ID for ${label} ${email}`)
   return accountId
+}
+
+async function resolveRequesterAccountId(client: AcosDataClient, email: string): Promise<string> {
+  return resolveJiraAccountId(client, email, 'requester')
+}
+
+async function resolveDefaultReporterAccountId(client: AcosDataClient): Promise<string> {
+  const email = jiraDefaultReporterEmail()
+  return resolveJiraAccountId(client, email, 'default reporter')
 }
 
 function customerRequestKey(data: JiraCustomerRequest): string | null {
@@ -449,6 +484,14 @@ function jiraProjectKey(): string {
 
 function jiraRequestType(): string {
   return process.env.JIRA_REQUEST_TYPE?.trim() || process.env.JIRA_ISSUE_TYPE?.trim() || DEFAULT_REQUEST_TYPE
+}
+
+function jiraDefaultReporterEmail(): string {
+  return process.env.JIRA_DEFAULT_REPORTER_EMAIL?.trim().toLowerCase() || DEFAULT_REPORTER_EMAIL
+}
+
+function jiraCommentSyncEnabled(): boolean {
+  return process.env.JIRA_COMMENT_SYNC_ENABLED?.trim().toLowerCase() !== 'false'
 }
 
 export async function checkJiraAccess(): Promise<JiraAccessCheck> {
@@ -524,10 +567,13 @@ export async function createJiraIssueForRequest(requestId: string): Promise<void
 
   try {
     const client = jiraClient()
-    const [contract, requesterAccountId] = await Promise.all([
+    const defaultReporterEmail = jiraDefaultReporterEmail()
+    const [contract, requesterAccountId, defaultReporterAccountId] = await Promise.all([
       resolveJsmContract(projectKey, requestType),
       resolveRequesterAccountId(client, request.requesterEmail),
+      resolveDefaultReporterAccountId(client),
     ])
+    const requestParticipants = requesterAccountId === defaultReporterAccountId ? [] : [requesterAccountId]
     const { data } = await client.call<JiraCustomerRequest>(
       'jira',
       'create-customer-request',
@@ -535,6 +581,8 @@ export async function createJiraIssueForRequest(requestId: string): Promise<void
         serviceDeskId: contract.serviceDeskId,
         requestTypeId: contract.requestTypeId,
         requestFieldValues: requestFieldValues(contract.fields, request),
+        raiseOnBehalfOf: defaultReporterAccountId,
+        ...(requestParticipants.length ? { requestParticipants } : {}),
       },
       { idempotencyKey: `enablement-doer:jsm-create:${request.id}` }
     )
@@ -560,20 +608,65 @@ export async function createJiraIssueForRequest(requestId: string): Promise<void
               jiraIssueUrl,
               serviceDeskId: contract.serviceDeskId,
               requestTypeId: contract.requestTypeId,
+              defaultReporterEmail,
+              requesterParticipantIncluded: requestParticipants.length === 1,
             },
           },
         },
       },
     })
 
+    if (jiraCommentSyncEnabled()) {
+      try {
+        await client.call(
+          'jira',
+          'add-customer-request-comment',
+          {
+            issueIdOrKey: jiraIssueKey,
+            body: contextCommentText(request, 'Enablement Do-er initial handoff record'),
+            public: false,
+          },
+          { idempotencyKey: `enablement-doer:jsm-initial-context:${request.id}` }
+        )
+        await prisma.requestAction.create({
+          data: {
+            requestId,
+            action: 'jira_initial_context_synced',
+            actor: null,
+            source: 'system',
+            metadata: { jiraIssueKey, public: false },
+          },
+        })
+      } catch (contextError) {
+        const details = errorDetails(contextError)
+        const warning = truncate(`Jira was created, but the initial context comment needs attention: ${details.code}: ${details.message}`, 1000)
+        await prisma.trainingRequest.update({
+          where: { id: requestId },
+          data: {
+            jiraSyncError: warning,
+            actions: {
+              create: {
+                action: 'jira_initial_context_sync_failed',
+                actor: null,
+                source: 'system',
+                metadata: { code: details.code, message: truncate(details.message, 1000), requestId: details.requestId ?? null, status: details.status ?? null },
+              },
+            },
+          },
+        })
+      }
+    }
+
     try {
       await client.jira.getCustomerRequest({ issueIdOrKey: jiraIssueKey, expand: 'participant,status' })
-      await client.call(
-        'jira',
-        'add-request-participant',
-        { issueIdOrKey: jiraIssueKey, accountIds: [requesterAccountId] },
-        { idempotencyKey: `enablement-doer:jsm-participant:${request.id}:${requesterAccountId}` }
-      )
+      if (requesterAccountId !== defaultReporterAccountId) {
+        await client.call(
+          'jira',
+          'add-request-participant',
+          { issueIdOrKey: jiraIssueKey, accountIds: [requesterAccountId] },
+          { idempotencyKey: `enablement-doer:jsm-participant:${request.id}:${requesterAccountId}` }
+        )
+      }
       await prisma.requestAction.createMany({
         data: [
           {
@@ -585,7 +678,7 @@ export async function createJiraIssueForRequest(requestId: string): Promise<void
           },
           {
             requestId,
-            action: 'jira_requester_participant_added',
+            action: requesterAccountId === defaultReporterAccountId ? 'jira_requester_is_default_reporter' : 'jira_requester_participant_added',
             actor: null,
             source: 'system',
             metadata: { jiraIssueKey, requesterEmail: request.requesterEmail },
@@ -639,7 +732,7 @@ export async function createJiraIssueForRequest(requestId: string): Promise<void
 }
 
 export async function syncJiraCommentForMessage(requestId: string, messageId: string): Promise<void> {
-  if (!jiraAutoCreateEnabled()) return
+  if (!jiraCommentSyncEnabled()) return
 
   const prisma = getPrisma()
   const [request, message] = await Promise.all([
@@ -678,6 +771,61 @@ export async function syncJiraCommentForMessage(requestId: string, messageId: st
         actor: message.author,
         source: 'system',
         metadata: { messageId, public: isPublic, code: details.code, message: truncate(details.message, 1000), requestId: details.requestId ?? null, status: details.status ?? null },
+      },
+    })
+  }
+}
+
+export async function syncJiraContextForRequest(
+  requestId: string,
+  update: { eventKey: string; heading: string; details: string; actor: string | null }
+): Promise<void> {
+  if (!jiraCommentSyncEnabled()) return
+
+  const prisma = getPrisma()
+  const request = await prisma.trainingRequest.findUnique({
+    where: { id: requestId },
+    include: {
+      assessments: { orderBy: { version: 'desc' }, take: 1 },
+      messages: { orderBy: { createdAt: 'asc' } },
+      assetBuilds: {
+        orderBy: { revision: 'desc' },
+        take: 1,
+        include: { artifacts: { orderBy: { createdAt: 'asc' } } },
+      },
+    },
+  })
+  if (!request?.jiraIssueKey) return
+
+  try {
+    await jiraClient().call(
+      'jira',
+      'add-customer-request-comment',
+      {
+        issueIdOrKey: request.jiraIssueKey,
+        body: contextCommentText(request, update.heading, update.details),
+        public: false,
+      },
+      { idempotencyKey: `enablement-doer:jsm-context:${requestId}:${update.eventKey}` }
+    )
+    await prisma.requestAction.create({
+      data: {
+        requestId,
+        action: 'jira_context_synced',
+        actor: update.actor,
+        source: 'system',
+        metadata: { eventKey: update.eventKey, jiraIssueKey: request.jiraIssueKey, public: false },
+      },
+    })
+  } catch (error) {
+    const details = errorDetails(error)
+    await prisma.requestAction.create({
+      data: {
+        requestId,
+        action: requiresApproval(details.code) ? 'jira_context_pending_approval' : 'jira_context_sync_failed',
+        actor: update.actor,
+        source: 'system',
+        metadata: { eventKey: update.eventKey, code: details.code, message: truncate(details.message, 1000), requestId: details.requestId ?? null, status: details.status ?? null },
       },
     })
   }
