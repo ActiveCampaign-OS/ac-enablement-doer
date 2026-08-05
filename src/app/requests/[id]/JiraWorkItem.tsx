@@ -64,12 +64,15 @@ export function JiraWorkItem({
   const url = issueUrl(state)
   if (url && state.jiraIssueKey) {
     return (
-      <p className="nb-jira-work-item nb-jira-work-item-created" role="status">
-        <span>✓ Jira created</span>
-        <a href={url} target="_blank" rel="noreferrer">
-          Open {state.jiraIssueKey} ↗
-        </a>
-      </p>
+      <div className="nb-jira-work-item nb-jira-work-item-created" role="status">
+        <p>
+          <span>✓ Jira created</span>
+          <a href={url} target="_blank" rel="noreferrer">
+            Open {state.jiraIssueKey} ↗
+          </a>
+        </p>
+        {state.jiraSyncError && <p>Follow-up sync needs attention: {state.jiraSyncError}</p>}
+      </div>
     )
   }
 

@@ -3,6 +3,7 @@ import { after } from 'next/server'
 import { getPrisma } from '@/lib/prisma'
 import { canAccessRequest, getActorEmail, checkWrite, writeForbidden, isOperatorEmail } from '@/lib/permissions'
 import { runAssessment } from '@/lib/spine/assess'
+import { syncJiraCommentForMessage } from '@/lib/jira'
 
 export const dynamic = 'force-dynamic'
 export const maxDuration = 300
@@ -47,6 +48,11 @@ export async function POST(
   // RECOMMENDED) sends the request back through assessment.
   const shouldReassess =
     role === 'STAKEHOLDER' && ['NEEDS_INFO', 'RECOMMENDED'].includes(request.status)
+  if (request.jiraIssueKey) {
+    after(async () => {
+      await syncJiraCommentForMessage(id, message.id)
+    })
+  }
   if (shouldReassess) {
     after(async () => {
       await runAssessment(id, 'system')

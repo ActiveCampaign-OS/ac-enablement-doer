@@ -54,15 +54,16 @@ DECLINED (requires category + reason — feeds future assessments as negative ex
    - `SPINE_CONFLUENCE_PAGE_ID` (optional) — page id of the Spine doc to enable the weekly
      refresh cron. Also needs the `confluence` vendor appAccess grant (check
      `/api/diagnostics/confluence`).
-  - **Jira creation (paused for GEP)** — the app targets the `Global Enablement Programming
-    Request` type in project `GEP`, but GEP is a Jira Service Management project and the managed
-    ACOS catalog does not yet expose the JSM customer-request creation and required-field
-    discovery contract. `JIRA_AUTOCREATE_ENABLED=false` must remain set until that gateway work
-    and one guarded pilot are complete. `JIRA_PROJECT_KEY`, `JIRA_ISSUE_TYPE`, and
-    `JIRA_ASSIGNEE_ACCOUNT_ID` preserve the intended project, issue type, and fallback owner
-    configuration; they do not make the current generic endpoint safe for GEP. See
-    `docs/spark-jira-jsm-gateway-request.md` for the copy-ready ACOS request. Follow-up answers
-    remain in the linked Enablement Do-er record until the initial JSM request path is verified.
+  - **Jira Service Management (pilot gated)** — the app resolves GEP's live service desk,
+    request type, and required portal fields, then creates a JSM customer request only after the
+    existing late lifecycle gate. The app declares `jira:create-customer-request`,
+    `jira:add-customer-request-comment`, and `jira:add-request-participant` in `spark.json`;
+    approve those endpoint grants in Spark → Data → Access before a pilot. Keep
+    `JIRA_AUTOCREATE_ENABLED=false` until the grants are active and one guarded synthetic request
+    proves Jira creation plus Slack delivery. `JIRA_PROJECT_KEY` and `JIRA_REQUEST_TYPE` override
+    the defaults (`JIRA_ISSUE_TYPE` remains a compatibility fallback). The requester is added via
+    `add-request-participant`; the app intentionally does not use `raiseOnBehalfOf` until the
+    `ac-spark` Jira account's GEP Service Desk Agent role is confirmed.
    - **Asset storage** — no secret or AWS credentials are required. The
      `@aws-sdk/client-s3` dependency makes Spark provision a private bucket and inject
      `S3_BUCKET`; the app uses its pod IAM role. Artifacts are only downloadable by the
@@ -99,8 +100,9 @@ in-cluster and the headers are omitted.
 
 ## Architecture notes
 
-- Cloned from `ac-doc-auditor` patterns: `lib/acos-client.ts` (raw gateway client — the
-  official SDK's `github:` dep breaks Spark Docker builds), review-gate state machine,
+- Cloned from `ac-doc-auditor` patterns: `lib/acos-client.ts` (raw gateway client for existing
+  generic vendor calls) plus the pinned `@activecampaign-os/data-client` SDK for JSM request
+  methods, review-gate state machine,
   dismiss-with-reason feedback loop, best-effort Slack/outcomes.
 - Outcomes are **single-object POSTs only** to the injected `OUTCOMES_URL` (batch envelopes
   422 silently; the public ac-spark.com URL is silently eaten by Cloudflare Access).

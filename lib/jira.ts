@@ -1,34 +1,17 @@
 import type { Assessment, AssetArtifact, AssetBuild, RequestMessage, TrainingRequest } from '@prisma/client'
+import { AcosDataClient, AcosRequestError } from '@activecampaign-os/data-client'
 import { AcosError, callAcos, getVendorDetails, listVendors } from './acos-client'
 import { getPrisma } from './prisma'
 
 const JIRA_BASE_URL = 'https://activecampaign.atlassian.net'
 const DEFAULT_PROJECT_KEY = 'GEP'
-const DEFAULT_ISSUE_TYPE = 'Global Enablement Programming Request'
+const DEFAULT_REQUEST_TYPE = 'Global Enablement Programming Request'
 const MAX_DESCRIPTION_LENGTH = 7500
-
-interface JiraCreateIssueResponse {
-  id?: string
-  key?: string
-  issueKey?: string
-  issue_key?: string
-  self?: string
-  url?: string
-  issue?: {
-    id?: string
-    key?: string
-    issueKey?: string
-    self?: string
-  }
-}
 
 interface JiraProjectResponse {
   id?: string
   key?: string
   projectTypeKey?: string
-  lead?: { accountId?: string }
-  issueTypes?: Array<{ name?: string }>
-  project?: { lead?: { accountId?: string } }
 }
 
 interface JiraVendorEndpoint {
@@ -37,29 +20,46 @@ interface JiraVendorEndpoint {
   description?: string
 }
 
-type JiraAssignee = { accountId: string } | null
-
-export interface JiraAssigneeReadiness {
-  ready: boolean
-  source: 'configured-account' | 'project-lead' | 'unavailable'
-  error: string | null
-}
-
-export interface JiraIssueTypeReadiness {
-  ready: boolean | null
-  source: 'project-metadata' | 'metadata-unavailable' | 'unavailable'
-  error: string | null
-}
-
 export interface JiraCreateContractReadiness {
   ready: boolean
   projectType: string | null
-  createIssueEndpoint: boolean
-  createMetadataEndpoint: boolean
-  serviceDeskRequestEndpoint: boolean
-  serviceDeskMetadataEndpoint: boolean
+  endpointAvailability: Record<string, boolean>
+  serviceDeskId: string | null
+  requestTypeId: string | null
+  requiredFields: string[]
   requirements: string[]
   error: string | null
+}
+
+interface JiraServiceDesk {
+  id?: string | number
+  projectKey?: string
+  project?: { key?: string }
+}
+
+interface JiraRequestType {
+  id?: string | number
+  name?: string
+}
+
+interface JiraRequestField {
+  fieldId?: string
+  name?: string
+  required?: boolean
+  defaultValues?: unknown
+}
+
+interface JiraCustomerRequest {
+  issueId?: string | number
+  issueKey?: string
+  key?: string
+  _links?: { web?: string }
+}
+
+interface JsmContract {
+  serviceDeskId: string
+  requestTypeId: string
+  fields: JiraRequestField[]
 }
 
 type JiraRequest = TrainingRequest & {
@@ -181,14 +181,12 @@ function descriptionText(request: JiraRequest): string {
   return description
 }
 
-function issueKeyFrom(response: JiraCreateIssueResponse): string | null {
-  const issueKey = response.key ?? response.issueKey ?? response.issue_key ?? response.issue?.key ?? response.issue?.issueKey
-  return issueKey?.trim() || null
-}
-
 function errorDetails(error: unknown): { code: string; message: string; requestId?: string; status?: number } {
   if (error instanceof AcosError) {
     return { code: error.code, message: error.message, requestId: error.requestId, status: error.status }
+  }
+  if (error instanceof AcosRequestError) {
+    return { code: error.code, message: error.message, requestId: error.requestId, status: error.statusCode }
   }
   if (error instanceof Error) return { code: error.name, message: error.message }
   return { code: 'UNKNOWN_ERROR', message: String(error) }
@@ -196,49 +194,6 @@ function errorDetails(error: unknown): { code: string; message: string; requestI
 
 function requiresApproval(code: string): boolean {
   return code === 'PENDING_APPROVAL' || code === 'AUTH_PERMISSION_DENIED'
-}
-
-function projectLeadAccountId(project: JiraProjectResponse): string | null {
-  const accountId = project.lead?.accountId ?? project.project?.lead?.accountId
-  return accountId?.trim() || null
-}
-
-async function resolveDefaultAssignee(projectKey: string): Promise<{ assignee: JiraAssignee; source: JiraAssigneeReadiness['source'] }> {
-  const configuredAssignee = process.env.JIRA_ASSIGNEE_ACCOUNT_ID?.trim()
-  if (configuredAssignee) return { assignee: { accountId: configuredAssignee }, source: 'configured-account' }
-
-  const { data: project } = await callAcos<JiraProjectResponse>('jira', 'get-project', { projectIdOrKey: projectKey })
-  const accountId = projectLeadAccountId(project)
-  if (!accountId) throw new Error(`Jira project ${projectKey} has no project lead account ID for default assignment`)
-  return { assignee: { accountId }, source: 'project-lead' }
-}
-
-export async function checkJiraAssigneeReadiness(projectKey: string): Promise<JiraAssigneeReadiness> {
-  try {
-    const { source } = await resolveDefaultAssignee(projectKey)
-    return { ready: true, source, error: null }
-  } catch (error) {
-    return {
-      ready: false,
-      source: 'unavailable',
-      error: error instanceof Error ? error.message : String(error),
-    }
-  }
-}
-
-export async function checkJiraIssueTypeReadiness(projectKey: string, issueType: string): Promise<JiraIssueTypeReadiness> {
-  try {
-    const { data: project } = await callAcos<JiraProjectResponse>('jira', 'get-project', { projectIdOrKey: projectKey })
-    const issueTypes = project.issueTypes?.map((candidate) => candidate.name?.trim()).filter(Boolean) ?? []
-    if (!issueTypes.length) return { ready: null, source: 'metadata-unavailable', error: null }
-    return { ready: issueTypes.includes(issueType), source: 'project-metadata', error: null }
-  } catch (error) {
-    return {
-      ready: null,
-      source: 'unavailable',
-      error: error instanceof Error ? error.message : String(error),
-    }
-  }
 }
 
 function vendorEndpoints(details: Record<string, unknown>): JiraVendorEndpoint[] {
@@ -252,82 +207,254 @@ function hasEndpoint(endpoints: JiraVendorEndpoint[], matcher: (endpoint: JiraVe
   return endpoints.some(matcher)
 }
 
-export async function checkJiraCreateContractReadiness(projectKey: string): Promise<JiraCreateContractReadiness> {
+function record(value: unknown): Record<string, unknown> | null {
+  return value && typeof value === 'object' && !Array.isArray(value) ? value as Record<string, unknown> : null
+}
+
+function stringValue(value: unknown): string | null {
+  if (typeof value === 'string' && value.trim()) return value.trim()
+  if (typeof value === 'number') return String(value)
+  return null
+}
+
+function valuesFrom(data: unknown): unknown[] {
+  if (Array.isArray(data)) return data
+  const dataRecord = record(data)
+  return Array.isArray(dataRecord?.values) ? dataRecord.values : []
+}
+
+function fieldFrom(value: unknown): JiraRequestField | null {
+  const field = record(value)
+  if (!field) return null
+  const fieldId = stringValue(field.fieldId)
+  if (!fieldId) return null
+  return {
+    fieldId,
+    name: stringValue(field.name) ?? undefined,
+    required: field.required === true,
+    defaultValues: field.defaultValues,
+  }
+}
+
+function jiraClient(): AcosDataClient {
+  const url = process.env.ACOS_DATA_URL
+  const appId = process.env.ACOS_APP_ID
+  const apiKey = process.env.ACOS_API_KEY
+  if (!url || !appId || !apiKey) {
+    throw new AcosError(
+      'ENV_MISSING',
+      'ACOS_DATA_URL / ACOS_APP_ID / ACOS_API_KEY must be set before calling Jira Service Management'
+    )
+  }
+  return new AcosDataClient({ url, appId, apiKey, retries: 0 })
+}
+
+function serviceDeskProjectKey(value: unknown): string | null {
+  const desk = value as JiraServiceDesk
+  return desk.projectKey?.trim() || desk.project?.key?.trim() || null
+}
+
+async function resolveJsmContract(projectKey: string, requestTypeName: string): Promise<JsmContract> {
+  const client = jiraClient()
+  const { data: desksData } = await client.jira.listServiceDesks({ limit: 100 })
+  const desk = valuesFrom(desksData).find((candidate) => serviceDeskProjectKey(candidate)?.toLowerCase() === projectKey.toLowerCase()) as JiraServiceDesk | undefined
+  const serviceDeskId = desk ? stringValue(desk.id) : null
+  if (!serviceDeskId) throw new Error(`JSM service desk for project ${projectKey} was not found`)
+
+  const { data: requestTypesData } = await client.jira.listServiceDeskRequestTypes({ serviceDeskId, limit: 100 })
+  const requestType = valuesFrom(requestTypesData).find((candidate) => {
+    const type = candidate as JiraRequestType
+    return type.name?.trim().toLowerCase() === requestTypeName.toLowerCase()
+  }) as JiraRequestType | undefined
+  const requestTypeId = requestType ? stringValue(requestType.id) : null
+  if (!requestTypeId) throw new Error(`JSM request type ${requestTypeName} was not found on ${projectKey}`)
+
+  const { data: fieldsData } = await client.jira.getServiceDeskRequestTypeFields({ serviceDeskId, requestTypeId })
+  const fieldsRecord = record(fieldsData)
+  const requiredFieldIds = new Set(
+    valuesFrom(fieldsRecord?.requiredFields)
+      .map(fieldFrom)
+      .flatMap((field) => field?.fieldId ? [field.fieldId] : [])
+  )
+  const fields = valuesFrom(fieldsRecord?.requestTypeFields)
+    .map(fieldFrom)
+    .filter((field): field is JiraRequestField => field !== null)
+    .map((field) => ({ ...field, required: field.required || requiredFieldIds.has(field.fieldId ?? '') }))
+  if (!fields.length) throw new Error(`JSM request type ${requestTypeName} returned no portal field contract`)
+  return { serviceDeskId, requestTypeId, fields }
+}
+
+function endpointAvailability(endpoints: JiraVendorEndpoint[]): Record<string, boolean> {
+  const requiredSlugs = [
+    'list-service-desks',
+    'list-service-desk-request-types',
+    'get-service-desk-request-type-fields',
+    'get-customer-request',
+    'create-customer-request',
+    'add-customer-request-comment',
+    'add-request-participant',
+  ]
+  return Object.fromEntries(requiredSlugs.map((slug) => [slug, hasEndpoint(endpoints, (endpoint) => endpoint.slug === slug)]))
+}
+
+export async function checkJiraCreateContractReadiness(projectKey: string, requestTypeName: string): Promise<JiraCreateContractReadiness> {
+  let projectType: string | null = null
+  let endpointChecks: Record<string, boolean> = {}
   try {
     const [{ data: project }, vendorDetails] = await Promise.all([
       callAcos<JiraProjectResponse>('jira', 'get-project', { projectIdOrKey: projectKey }),
       getVendorDetails('jira'),
     ])
-    const endpoints = vendorEndpoints(vendorDetails)
-    const createIssueEndpoint = hasEndpoint(endpoints, (endpoint) => endpoint.slug === 'create-issue')
-    const createMetadataEndpoint = hasEndpoint(endpoints, (endpoint) => /create issue metadata/i.test(endpoint.description ?? ''))
-    const serviceDeskRequestEndpoint = hasEndpoint(endpoints, (endpoint) => /create.*(customer|service desk).*request/i.test(endpoint.description ?? ''))
-    const serviceDeskMetadataEndpoint = hasEndpoint(endpoints, (endpoint) => /request type fields|service desk.*request types|list service desks/i.test(endpoint.description ?? ''))
-    const projectType = project.projectTypeKey?.trim() || null
-    const requirements: string[] = []
-
-    if (!createIssueEndpoint) requirements.push('Enable the ACOS Jira create-issue endpoint.')
-    if (!createMetadataEndpoint) {
-      requirements.push('Add Jira create-issue metadata so required fields can be validated before submission.')
-    }
-    if (projectType === 'service_desk') {
-      if (!serviceDeskRequestEndpoint) {
-        requirements.push('Add a JSM customer-request create endpoint if GEP must be created through the service desk portal.')
-      }
-      if (!serviceDeskMetadataEndpoint) {
-        requirements.push('Add JSM service-desk, request-type, and request-type-field discovery endpoints to resolve serviceDeskId, requestTypeId, and required form fields.')
+    projectType = project.projectTypeKey?.trim() || null
+    endpointChecks = endpointAvailability(vendorEndpoints(vendorDetails))
+    const requirements = Object.entries(endpointChecks)
+      .filter(([, available]) => !available)
+      .map(([slug]) => `Enable the ACOS Jira ${slug} endpoint.`)
+    if (projectType !== 'service_desk') requirements.push(`Confirm ${projectKey} remains a Jira Service Management project.`)
+    if (requirements.length) {
+      return {
+        ready: false,
+        projectType,
+        endpointAvailability: endpointChecks,
+        serviceDeskId: null,
+        requestTypeId: null,
+        requiredFields: [],
+        requirements,
+        error: null,
       }
     }
-
+    const contract = await resolveJsmContract(projectKey, requestTypeName)
+    const unmappedRequired = missingRequiredJsmFields(contract.fields, null)
     return {
-      ready: requirements.length === 0,
+      ready: unmappedRequired.length === 0,
       projectType,
-      createIssueEndpoint,
-      createMetadataEndpoint,
-      serviceDeskRequestEndpoint,
-      serviceDeskMetadataEndpoint,
-      requirements,
+      endpointAvailability: endpointChecks,
+      serviceDeskId: contract.serviceDeskId,
+      requestTypeId: contract.requestTypeId,
+      requiredFields: contract.fields.filter((field) => field.required).map((field) => field.name ?? field.fieldId ?? 'unknown'),
+      requirements: unmappedRequired.length ? [`Add Enablement Do-er mappings for required JSM fields: ${unmappedRequired.join(', ')}.`] : [],
       error: null,
     }
   } catch (error) {
     return {
       ready: false,
-      projectType: null,
-      createIssueEndpoint: false,
-      createMetadataEndpoint: false,
-      serviceDeskRequestEndpoint: false,
-      serviceDeskMetadataEndpoint: false,
-      requirements: ['Inspect the live ACOS Jira catalog and project metadata before enabling Jira auto-create.'],
+      projectType,
+      endpointAvailability: endpointChecks,
+      serviceDeskId: null,
+      requestTypeId: null,
+      requiredFields: [],
+      requirements: ['Inspect the live GEP JSM service desk, request type, and required-field contract before enabling Jira auto-create.'],
       error: error instanceof Error ? error.message : String(error),
     }
   }
 }
 
-function createIssueParams(request: JiraRequest, projectKey: string, issueType: string, assignee: JiraAssignee) {
-  return {
-    projectKey,
-    summary: truncate(request.title, 250),
-    issueType,
-    description: descriptionText(request),
-    fields: {
-      assignee,
-      labels: ['enablement-doer'],
-    },
+function normalizeFieldName(field: JiraRequestField): string {
+  return `${field.fieldId ?? ''} ${field.name ?? ''}`.toLowerCase()
+}
+
+function fieldSource(field: JiraRequestField): keyof TrainingRequest | 'fullDescription' | 'dueDate' | null {
+  const name = normalizeFieldName(field)
+  if (/\bsummary\b|request.{0,8}title|project.{0,8}title/.test(name)) return 'title'
+  if (/\bdescription\b|situation|challenge|initiative|\bcontext\b|details/.test(name)) return 'fullDescription'
+  if (/business.{0,8}impact|business.{0,8}outcome|business.{0,8}goal/.test(name)) return 'businessImpact'
+  if (/success.{0,8}measure|measure.{0,16}success|success.{0,8}metric|how.{0,8}measure|\boutcome/.test(name)) return 'successMeasures'
+  if (/desired.{0,8}behavio|behavior.{0,8}change|behaviour.{0,8}change/.test(name)) return 'desiredBehavior'
+  if (/audience|team.{0,8}role|who.{0,8}need/.test(name)) return 'audience'
+  if (/timeline|deadline|launch.{0,8}date/.test(name)) return 'urgency'
+  if (/stakeholder|approver|reviewer|subject.{0,8}matter/.test(name)) return 'stakeholders'
+  if (/resource|documentation|source.{0,8}material|existing.{0,8}material/.test(name)) return 'sourceMaterials'
+  if (/accountability|next.{0,8}step|reinforcement|manager.{0,8}support/.test(name)) return 'accountability'
+  if (/due.{0,8}date/.test(name)) return 'dueDate'
+  return null
+}
+
+function hasDefaultValue(field: JiraRequestField): boolean {
+  if (Array.isArray(field.defaultValues)) return field.defaultValues.length > 0
+  return field.defaultValues !== null && field.defaultValues !== undefined && field.defaultValues !== ''
+}
+
+function sourceValue(source: keyof TrainingRequest | 'fullDescription' | 'dueDate', request: JiraRequest): string | null {
+  if (source === 'fullDescription') return descriptionText(request)
+  if (source === 'dueDate') return request.dueDate?.toISOString().slice(0, 10) ?? null
+  if (source === 'businessImpact') return request.businessImpact ?? request.businessGoal
+  const value = request[source]
+  return typeof value === 'string' && value.trim() ? value.trim() : null
+}
+
+function missingRequiredJsmFields(fields: JiraRequestField[], request: JiraRequest | null): string[] {
+  return fields
+    .filter((field) => field.required)
+    .filter((field) => {
+      const source = fieldSource(field)
+      if (!source) return !hasDefaultValue(field)
+      return request ? !sourceValue(source, request) && !hasDefaultValue(field) : false
+    })
+    .map((field) => field.name ?? field.fieldId ?? 'unknown field')
+}
+
+function requestFieldValues(fields: JiraRequestField[], request: JiraRequest): Record<string, unknown> {
+  const missingFields = missingRequiredJsmFields(fields, request)
+  if (missingFields.length) {
+    throw new Error(`GEP JSM request has required fields without values: ${missingFields.join(', ')}`)
   }
+  const values: Record<string, unknown> = {}
+  for (const field of fields) {
+    const fieldId = field.fieldId
+    const source = fieldSource(field)
+    if (!fieldId || !source) continue
+    const value = sourceValue(source, request)
+    if (value) values[fieldId] = source === 'title' ? truncate(value, 250) : value
+  }
+  if (!Object.keys(values).length) throw new Error('GEP JSM request field mapping produced no values')
+  return values
+}
+
+function jiraAccountId(data: unknown, email: string): string | null {
+  const candidates = valuesFrom(data).map(record).filter((candidate): candidate is Record<string, unknown> => candidate !== null)
+  const exactMatch = candidates.find((candidate) => stringValue(candidate.emailAddress)?.toLowerCase() === email.toLowerCase())
+  const candidate = exactMatch ?? candidates[0]
+  return candidate ? stringValue(candidate.accountId) : null
+}
+
+async function resolveRequesterAccountId(client: AcosDataClient, email: string): Promise<string> {
+  const { data } = await client.jira.findUsers({ query: email, maxResults: 10 })
+  const accountId = jiraAccountId(data, email)
+  if (!accountId) throw new Error(`Jira account lookup found no account ID for ${email}`)
+  return accountId
+}
+
+function customerRequestKey(data: JiraCustomerRequest): string | null {
+  return data.issueKey?.trim() || data.key?.trim() || null
+}
+
+function customerRequestUrl(data: JiraCustomerRequest, issueKey: string): string {
+  const web = data._links?.web?.trim()
+  if (web?.startsWith('http://') || web?.startsWith('https://')) return web
+  if (web?.startsWith('/')) return `${JIRA_BASE_URL}${web}`
+  return `${JIRA_BASE_URL}/browse/${encodeURIComponent(issueKey)}`
 }
 
 export interface JiraAccessCheck {
   projectKey: string
-  issueType: string
+  requestType: string
   acosEnv: { url: boolean; appId: boolean; apiKey: boolean }
   jiraVendor?: { found: boolean; appAccess?: string }
   vendorsError?: string
 }
 
+function jiraProjectKey(): string {
+  return process.env.JIRA_PROJECT_KEY?.trim() || DEFAULT_PROJECT_KEY
+}
+
+function jiraRequestType(): string {
+  return process.env.JIRA_REQUEST_TYPE?.trim() || process.env.JIRA_ISSUE_TYPE?.trim() || DEFAULT_REQUEST_TYPE
+}
+
 export async function checkJiraAccess(): Promise<JiraAccessCheck> {
   const out: JiraAccessCheck = {
-    projectKey: process.env.JIRA_PROJECT_KEY?.trim() || DEFAULT_PROJECT_KEY,
-    issueType: process.env.JIRA_ISSUE_TYPE?.trim() || DEFAULT_ISSUE_TYPE,
+    projectKey: jiraProjectKey(),
+    requestType: jiraRequestType(),
     acosEnv: {
       url: !!process.env.ACOS_DATA_URL,
       appId: !!process.env.ACOS_APP_ID,
@@ -348,7 +475,7 @@ export async function checkJiraAccess(): Promise<JiraAccessCheck> {
 }
 
 export function jiraAutoCreateEnabled(): boolean {
-  return process.env.JIRA_AUTOCREATE_ENABLED?.trim().toLowerCase() !== 'false'
+  return process.env.JIRA_AUTOCREATE_ENABLED?.trim().toLowerCase() === 'true'
 }
 
 export async function createJiraIssueForRequest(requestId: string): Promise<void> {
@@ -392,22 +519,30 @@ export async function createJiraIssueForRequest(requestId: string): Promise<void
   })
   if (claim.count !== 1) return
 
-  const projectKey = process.env.JIRA_PROJECT_KEY?.trim() || DEFAULT_PROJECT_KEY
-  const issueType = process.env.JIRA_ISSUE_TYPE?.trim() || DEFAULT_ISSUE_TYPE
-  let assigneeSource: JiraAssigneeReadiness['source'] = 'unavailable'
+  const projectKey = jiraProjectKey()
+  const requestType = jiraRequestType()
 
   try {
-    const resolvedAssignee = await resolveDefaultAssignee(projectKey)
-    assigneeSource = resolvedAssignee.source
-    const { data } = await callAcos<JiraCreateIssueResponse>(
+    const client = jiraClient()
+    const [contract, requesterAccountId] = await Promise.all([
+      resolveJsmContract(projectKey, requestType),
+      resolveRequesterAccountId(client, request.requesterEmail),
+    ])
+    const { data } = await client.call<JiraCustomerRequest>(
       'jira',
-      'create-issue',
-      createIssueParams(request, projectKey, issueType, resolvedAssignee.assignee)
+      'create-customer-request',
+      {
+        serviceDeskId: contract.serviceDeskId,
+        requestTypeId: contract.requestTypeId,
+        requestFieldValues: requestFieldValues(contract.fields, request),
+      },
+      { idempotencyKey: `enablement-doer:jsm-create:${request.id}` }
     )
-    const jiraIssueKey = issueKeyFrom(data)
-    if (!jiraIssueKey) throw new Error('Jira create-issue returned no issue key')
+    if (!data) throw new Error('JSM create-customer-request returned an empty response')
+    const jiraIssueKey = customerRequestKey(data)
+    if (!jiraIssueKey) throw new Error('JSM create-customer-request returned no issue key')
 
-    const jiraIssueUrl = `${JIRA_BASE_URL}/browse/${encodeURIComponent(jiraIssueKey)}`
+    const jiraIssueUrl = customerRequestUrl(data, jiraIssueKey)
     await prisma.trainingRequest.update({
       where: { id: requestId },
       data: {
@@ -420,20 +555,70 @@ export async function createJiraIssueForRequest(requestId: string): Promise<void
             action: 'jira_issue_created',
             actor: null,
             source: 'system',
-            metadata: { jiraIssueKey, jiraIssueUrl },
+            metadata: {
+              jiraIssueKey,
+              jiraIssueUrl,
+              serviceDeskId: contract.serviceDeskId,
+              requestTypeId: contract.requestTypeId,
+            },
           },
         },
       },
     })
+
+    try {
+      await client.jira.getCustomerRequest({ issueIdOrKey: jiraIssueKey, expand: 'participant,status' })
+      await client.call(
+        'jira',
+        'add-request-participant',
+        { issueIdOrKey: jiraIssueKey, accountIds: [requesterAccountId] },
+        { idempotencyKey: `enablement-doer:jsm-participant:${request.id}:${requesterAccountId}` }
+      )
+      await prisma.requestAction.createMany({
+        data: [
+          {
+            requestId,
+            action: 'jira_customer_request_verified',
+            actor: null,
+            source: 'system',
+            metadata: { jiraIssueKey },
+          },
+          {
+            requestId,
+            action: 'jira_requester_participant_added',
+            actor: null,
+            source: 'system',
+            metadata: { jiraIssueKey, requesterEmail: request.requesterEmail },
+          },
+        ],
+      })
+    } catch (postCreateError) {
+      const details = errorDetails(postCreateError)
+      const warning = truncate(`Jira was created, but post-create verification or participant sync needs attention: ${details.code}: ${details.message}`, 1000)
+      await prisma.trainingRequest.update({
+        where: { id: requestId },
+        data: {
+          jiraSyncError: warning,
+          actions: {
+            create: {
+              action: 'jira_post_create_sync_failed',
+              actor: null,
+              source: 'system',
+              metadata: { code: details.code, message: truncate(details.message, 1000), requestId: details.requestId ?? null, status: details.status ?? null },
+            },
+          },
+        },
+      })
+    }
   } catch (error) {
     const { code, message, requestId: acosRequestId, status } = errorDetails(error)
     const jiraSyncStatus = requiresApproval(code) ? 'PENDING_APPROVAL' : 'FAILED'
     const requestTrace = acosRequestId ? `; acosRequest=${acosRequestId}` : ''
     const jiraSyncError = truncate(
-      `${code}: ${message} | project=${projectKey}; issueType=${issueType}; assignee=${assigneeSource}${requestTrace}`,
+      `${code}: ${message} | project=${projectKey}; requestType=${requestType}${requestTrace}`,
       1000
     )
-    console.error(`[jira] ${requestId} create-issue failed: ${jiraSyncError}`)
+    console.error(`[jira] ${requestId} create-customer-request failed: ${jiraSyncError}`)
 
     await prisma.trainingRequest.update({
       where: { id: requestId },
@@ -448,6 +633,51 @@ export async function createJiraIssueForRequest(requestId: string): Promise<void
             metadata: { code, message: truncate(message, 1000), requestId: acosRequestId ?? null, status: status ?? null },
           },
         },
+      },
+    })
+  }
+}
+
+export async function syncJiraCommentForMessage(requestId: string, messageId: string): Promise<void> {
+  if (!jiraAutoCreateEnabled()) return
+
+  const prisma = getPrisma()
+  const [request, message] = await Promise.all([
+    prisma.trainingRequest.findUnique({ where: { id: requestId }, select: { jiraIssueKey: true } }),
+    prisma.requestMessage.findFirst({ where: { id: messageId, requestId } }),
+  ])
+  if (!request?.jiraIssueKey || !message) return
+
+  const isPublic = message.role === 'STAKEHOLDER'
+  try {
+    await jiraClient().call(
+      'jira',
+      'add-customer-request-comment',
+      {
+        issueIdOrKey: request.jiraIssueKey,
+        body: `Enablement Do-er ${isPublic ? 'stakeholder' : 'operator'} update from ${message.author}:\n\n${message.body}`,
+        public: isPublic,
+      },
+      { idempotencyKey: `enablement-doer:jsm-comment:${requestId}:${messageId}` }
+    )
+    await prisma.requestAction.create({
+      data: {
+        requestId,
+        action: 'jira_comment_synced',
+        actor: message.author,
+        source: 'system',
+        metadata: { messageId, public: isPublic, jiraIssueKey: request.jiraIssueKey },
+      },
+    })
+  } catch (error) {
+    const details = errorDetails(error)
+    await prisma.requestAction.create({
+      data: {
+        requestId,
+        action: requiresApproval(details.code) ? 'jira_comment_pending_approval' : 'jira_comment_sync_failed',
+        actor: message.author,
+        source: 'system',
+        metadata: { messageId, public: isPublic, code: details.code, message: truncate(details.message, 1000), requestId: details.requestId ?? null, status: details.status ?? null },
       },
     })
   }

@@ -1,12 +1,12 @@
 # Spark / ACOS request: enable Jira Service Management customer requests for GEP
 
-**Decision requested:** Approve and ship the Jira REST endpoint update below in `acos-data`. This is a **REST gateway** change, not a Jira MCP request. Do not enable `JIRA_AUTOCREATE_ENABLED` or create a test issue as part of this change.
+**Status (August 5, 2026):** Shipped in `acos-data`. This remains a **REST gateway** integration, not Jira MCP. Keep `JIRA_AUTOCREATE_ENABLED=false` until the app's three write grants are approved and one guarded pilot is authorized.
 
 ## Why this is needed
 
 Enablement Do-er files work in **GEP / Global Enablement Programming**, which is a Jira Service Management (JSM) project. The current generic `jira:create-issue` endpoint cannot safely create the portal request because the app cannot discover the GEP service desk, its request type, or the current required portal fields before a write.
 
-The app currently keeps `JIRA_AUTOCREATE_ENABLED=false` and records a paused Jira sync. This avoids creating incomplete or empty records. The requested endpoints let it resolve the live portal contract first, create one complete customer request after a draft or confirmed handoff is ready, then synchronize later context to the same request.
+The app keeps `JIRA_AUTOCREATE_ENABLED=false` and records a paused Jira sync. This avoids creating incomplete or empty records. The shipped endpoints let it resolve the live portal contract first, create one complete customer request after a draft or confirmed handoff is ready, then synchronize later context to the same request.
 
 ## Copy/paste implementation request
 
@@ -40,17 +40,17 @@ PII redaction, and error handling:
    - Returns: every portal field needed to create the request, including fieldId,
      name, required, validValues, and any default values.
 
-Add these write endpoints with no response cache and gateway idempotency enabled.
-Use the established Jira write-endpoint PII-redaction convention for requester
-identity, participant account IDs, and free-text field values:
+Add these write endpoints with no response cache and PII declarations for requester
+identity, participant account IDs, and free-text field values. Caller-supplied
+idempotency keys are supported, but their cache is per pod:
 
 4. create-customer-request
    - Upstream: POST /rest/servicedeskapi/request
    - Params:
        serviceDeskId: string (required)
        requestTypeId: string (required)
-       requestFieldValues: Record<string, unknown> (required; keys must be
-         validated against the fields returned by endpoint 3)
+       requestFieldValues: Record<string, unknown> (required; keys are built by
+         the app from the live fields returned by endpoint 3)
        raiseOnBehalfOf?: string
        requestParticipants?: string[]
    - Return the JSM CustomerRequestDTO unchanged enough for callers to persist
@@ -68,13 +68,14 @@ identity, participant account IDs, and free-text field values:
    - Params: issueIdOrKey: string (required), body: string (required), public: boolean (required)
    - Use this for follow-up answers and delivery context. Redact body from audit logs.
 
-7. add-customer-request-participants
+7. add-request-participant (already existed; do not rename)
    - Upstream: POST /rest/servicedeskapi/request/{issueIdOrKey}/participant
    - Params: issueIdOrKey: string (required), accountIds: string[] (required)
    - Use this to add the requester after account-id lookup where the JSM request
      does not already make them a participant. Redact accountIds from audit logs.
 
-Update the endpoint definitions in src/vendors/jira/endpoints.ts.
+Update the endpoint definitions in src/vendors/jira/endpoints.ts. Six endpoints are
+new; `add-request-participant` already exists with the correct JSM path and body.
 Update the Jira adapter's executeEndpoint() and URL builder in
 src/vendors/jira/adapter.ts for the path parameters and request bodies above.
 Update prisma/seed.ts to upsert all endpoint definitions and keep the Jira vendor's
@@ -91,18 +92,18 @@ error envelope. Never put credentials or raw request bodies in the error/audit l
 1. In **Data → Vendors → Jira**, the seven endpoint slugs appear with the methods and paths above.
 2. The Sandbox can read service desks, then request types and required fields for the selected GEP desk/type. This must happen before any create test.
 3. A deliberately incomplete sandbox create returns a sanitized JSM field error, not a generic `400` without details.
-4. A single approved synthetic create returns an issue key/URL, and retrying it with the same gateway idempotency key does not create a duplicate request.
+4. A single approved synthetic create returns an issue key/URL. A fast same-pod retry may be protected by the same idempotency key, but a cross-pod retry is not a deduplication guarantee; verify with `get-customer-request` before any retry.
 5. `get-customer-request`, one internal comment, and participant addition can be verified against that synthetic request.
 6. The existing generic `jira:create-issue` continues to work unchanged for its current consumers.
 
-## After the gateway is shipped
+## After the gateway shipped
 
 Enablement Do-er will make a small, separate app change:
 
-1. Add the new Jira write endpoint slugs to `spark.json` under `acosData.write`, then obtain the resulting app-access approvals.
-2. Resolve the GEP desk/type/field metadata at runtime, map the full intake into `requestFieldValues`, and create JSM requests only at the existing late lifecycle gate.
-3. Persist the returned Jira key and clickable URL, validate the request with `get-customer-request`, and add the requester as a participant when needed.
-4. Keep `JIRA_AUTOCREATE_ENABLED=false` until one explicit synthetic end-to-end pilot proves Jira creation and Slack delivery.
+1. **Complete:** add `jira:create-customer-request`, `jira:add-customer-request-comment`, and `jira:add-request-participant` under `acosData.write`.
+2. **Complete:** resolve the GEP desk/type/field metadata at runtime, map the full intake into plain-text `requestFieldValues`, and create JSM requests only at the existing late lifecycle gate.
+3. **Complete:** persist the returned Jira key and clickable URL, validate the request with `get-customer-request`, add the requester as a participant, and sync later messages as JSM comments.
+4. **Pending:** approve the Spark endpoint grants, confirm the GEP Service Desk Agent role before considering `raiseOnBehalfOf`, and run one explicit synthetic end-to-end pilot before setting `JIRA_AUTOCREATE_ENABLED=true`.
 
 ## Scope boundary
 

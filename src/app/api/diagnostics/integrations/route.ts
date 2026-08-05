@@ -1,9 +1,8 @@
 import { NextResponse } from 'next/server'
 import {
   checkJiraAccess,
-  checkJiraAssigneeReadiness,
   checkJiraCreateContractReadiness,
-  checkJiraIssueTypeReadiness,
+  jiraAutoCreateEnabled,
 } from '@/lib/jira'
 import { checkSlackAccess } from '@/lib/slack'
 
@@ -12,26 +11,25 @@ export const maxDuration = 60
 
 export async function GET() {
   const jira = await checkJiraAccess()
-  const [slack, jiraAssignee, jiraIssueType, jiraCreateContract] = await Promise.all([
+  const [slack, jiraCreateContract] = await Promise.all([
     checkSlackAccess(),
-    checkJiraAssigneeReadiness(jira.projectKey),
-    checkJiraIssueTypeReadiness(jira.projectKey, jira.issueType),
-    checkJiraCreateContractReadiness(jira.projectKey),
+    checkJiraCreateContractReadiness(jira.projectKey, jira.requestType),
   ])
   const jiraActive = jira.jiraVendor?.found && jira.jiraVendor.appAccess === 'active'
   const slackActive = slack.slackVendor?.found && slack.slackVendor.appAccess === 'active'
+  const autoCreateEnabled = jiraAutoCreateEnabled()
 
   return NextResponse.json({
-    ok: jiraActive && jiraAssignee.ready && jiraCreateContract.ready && slackActive && slack.channelConfigured,
+    ok: jiraActive && jiraCreateContract.ready && autoCreateEnabled && slackActive && slack.channelConfigured,
     jira: {
       ...jira,
-      createIssue: {
-        endpoint: 'create-issue',
-        declared: true,
-        assignee: jiraAssignee,
-        issueType: jiraIssueType,
+      createCustomerRequest: {
+        endpoint: 'create-customer-request',
+        autoCreateEnabled,
         contract: jiraCreateContract,
-        verifiedBy: jiraCreateContract.ready ? 'the next submitted request' : 'missing gateway metadata or JSM request capabilities',
+        verifiedBy: jiraCreateContract.ready && autoCreateEnabled
+          ? 'the next explicitly approved synthetic request'
+          : 'JSM contract reads only; writes remain disabled until grants and pilot approval are complete',
       },
     },
     slack,

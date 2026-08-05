@@ -17,7 +17,11 @@
   "acosData": {
     "vendors": ["confluence", "slack", "jira", "glean"],
     "mcp": ["glean"],
-    "write": ["jira:create-issue"]
+    "write": [
+      "jira:create-customer-request",
+      "jira:add-customer-request-comment",
+      "jira:add-request-participant"
+    ]
   },
   "cron": [
     { "schedule": "0 14 * * 1-5", "path": "/api/cron/nudge", "method": "POST", "description": "Weekday stale-request nudges (9am CT)" },

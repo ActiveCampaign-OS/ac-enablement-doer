@@ -82,21 +82,21 @@ The intended Jira project is **GEP / Global Enablement Programming**, using the 
 - **Autonomous asset:** the worker creates the Jira item only after it has produced the review-ready draft.
 - **Human-only handoff:** the app attempts Jira creation once the stakeholder has confirmed the handoff.
 
-When creation succeeds, the app saves the Jira key and clickable URL on the request. The Jira description is designed to be a complete handoff record: intake answers, assessment, stakeholder/agent conversation, asset summary, draft excerpt, and an authenticated asset-download link where applicable. The issue is labelled `enablement-doer` and assigned to the configured Jira account or the GEP project lead.
+When creation succeeds, the app saves the Jira key and clickable URL on the request. It resolves the current GEP service desk, request type, and portal fields immediately before the write; all JSM field text is plain text, not Atlassian Document Format. The description is designed to be a complete handoff record: intake answers, assessment, stakeholder/agent conversation, asset summary, draft excerpt, and an authenticated asset-download link where applicable. The app verifies the resulting customer request, then resolves and adds the requester as a JSM participant. Later stakeholder messages sync as portal-visible comments; operator messages sync as internal comments.
 
-Jira sync is guarded by `JIRA_AUTOCREATE_ENABLED`. It is currently **disabled** while the managed gateway contract is incomplete, so the app records a paused sync rather than creating a partial or empty Jira item.
+Jira sync is guarded by `JIRA_AUTOCREATE_ENABLED`, which defaults to **disabled** and remains disabled for the pilot. The JSM endpoint grants must be active first. The app does not use `raiseOnBehalfOf` until the `ac-spark` account's GEP Service Desk Agent role is confirmed.
 
-## Current Jira limitation
+## Current Jira pilot boundary
 
-The GEP project is a Jira Service Management project. At the last live ACOS check, the Jira catalog provided generic `create-issue`, but did **not** provide the data needed to safely create and validate a JSM portal request:
+The managed ACOS Jira gateway now exposes the native JSM service-desk, request-type, request-type-field, customer-request, comment, and participant endpoints. The app is pinned to `@activecampaign-os/data-client` `0.27.x` so those methods are available.
 
-- required-field/create metadata;
-- JSM customer-request creation; and
-- service-desk, request-type, and request-type-field discovery.
+The remaining gates are deliberate:
 
-That means the app cannot prove the exact required Jira payload before writing. The integrations diagnostic reports this as not ready, and auto-create remains off. This is an upstream ACOS/Jira gateway capability gap, not a missing request or a failed asset-builder workflow.
+- Spark must approve the three declared Jira write endpoint grants.
+- GEP administration must confirm whether `ac-spark` has the Service Desk Agent role before `raiseOnBehalfOf` can ever be enabled. The app currently uses the separate participant endpoint instead.
+- One explicitly approved synthetic request must verify the Jira record, requester participant, follow-up comment, and Slack delivery.
 
-**To unblock the pilot:** Spark/ACOS should expose the JSM customer-request and discovery endpoints above, or expose sanitized upstream Jira `errorMessages` and field errors for a failed `create-issue` call. Once one of those is available, Operations can run one guarded synthetic request and verify the Jira record plus Slack notification end to end.
+**Idempotency note:** the gateway can protect a fast retry with the same caller key, but its cache is per pod. The app never treats that as a distributed deduplication guarantee: after a network-uncertain create, an operator must inspect Jira before retrying.
 
 ## Controls, ownership, and evidence
 
@@ -122,4 +122,4 @@ That means the app cannot prove the exact required Jira payload before writing. 
 1. The team can submit, assess, scope, recommend, confirm, create review-ready job aids/manager guides/deck storyboards, review them, and deliver them through the app.
 2. Slack operational notifications can be used when the channel is configured.
 3. Rise and Solidroad work intentionally appears in the human handoff queue.
-4. Jira creation is **not yet live** for GEP. The request record remains the complete, auditable system of record until the managed JSM contract is exposed and the guarded pilot is completed.
+4. Jira creation is **not yet enabled** for GEP. The JSM contract and app integration are ready, but endpoint grants and the guarded pilot remain before it is live.
