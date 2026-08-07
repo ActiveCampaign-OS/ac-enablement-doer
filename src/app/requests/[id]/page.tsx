@@ -54,6 +54,10 @@ function requestTypeLabel(value: string): string {
   return labels[value] ?? value
 }
 
+function intakeModeLabel(value: string): string {
+  return value === 'GUIDED_CHAT' ? 'Guided conversation' : 'Structured form'
+}
+
 export default async function RequestDetailPage({
   params,
 }: {
@@ -110,6 +114,7 @@ export default async function RequestDetailPage({
         </div>
         <p className="border-y-3 border-black py-3 text-xs font-bold uppercase tracking-wide text-[#5f594f]">
           {request.requesterEmail}
+          {request.intakeMode ? ` · ${intakeModeLabel(request.intakeMode)}` : ''}
           {request.dueDate ? ` · due ${request.dueDate.toISOString().slice(0, 10)}` : ''}
           {request.assignedTo ? ` · assigned to ${request.assignedTo}` : ''}
         </p>

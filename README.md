@@ -15,6 +15,20 @@ generated autonomously as review-ready Markdown drafts. Decks are generated as c
 storyboards with an in-app preview and downloadable JSON source. Rise courses and Solidroad
 simulations remain explicit human handoffs.
 
+## Intake pilot modes
+
+`/requests/new` supports two paths that create the same governed request record:
+
+- **Guided conversation** — a one-question-at-a-time AI interview that gathers the business need,
+  behavior, audience, success measures, timing, stakeholders, sources, and reinforcement plan.
+  It never assumes training is the solution and falls back to a structured interview if the model is
+  temporarily unavailable.
+- **Structured form** — the full direct-entry version of those same questions.
+
+The selected mode is persisted as `TrainingRequest.intakeMode` and in the `submitted` audit action
+metadata so the pilot can compare completion, follow-up needs, routing accuracy, and operator edit
+burden without splitting the downstream workflow.
+
 ## Lifecycle
 
 ```

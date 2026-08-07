@@ -5,18 +5,11 @@ import { getActorEmail, checkWrite, isOperatorEmail, operatorForbidden, writeFor
 import { runAssessment } from '@/lib/spine/assess'
 import { notifySlack, requestBlocks } from '@/lib/slack'
 import { parsePixelDoodle } from '@/lib/pixel-doodle'
+import { INTAKE_MODES, REQUEST_TYPE_OPTIONS, type IntakeMode } from '@/lib/intake'
 import type { Prisma, RequestStatus } from '@prisma/client'
 
 export const dynamic = 'force-dynamic'
 export const maxDuration = 300
-
-const REQUEST_TYPES = [
-  'HELP_ME_DIAGNOSE',
-  'SELF_SERVE_RESOURCE',
-  'COACHING_SUPPORT',
-  'ENABLEMENT_PARTNERSHIP',
-  'OTHER',
-] as const
 
 function formatBusinessGoal(businessImpact: string, successMeasures: string): string {
   return `Business impact:\n${businessImpact}\n\nSuccess measures:\n${successMeasures}`
@@ -73,6 +66,7 @@ export async function POST(req: NextRequest) {
   const stakeholders = String(body.stakeholders ?? '').trim()
   const sourceMaterials = String(body.sourceMaterials ?? '').trim()
   const accountability = String(body.accountability ?? '').trim()
+  const intakeMode = String(body.intakeMode ?? 'FORM').trim()
   const pixelDoodle = parsePixelDoodle(body.pixelDoodle)
   const missingFields = [
     { value: title, label: 'request title' },
@@ -94,8 +88,11 @@ export async function POST(req: NextRequest) {
   if (title.length > 250) {
     return NextResponse.json({ error: 'request title must be 250 characters or fewer' }, { status: 400 })
   }
-  if (!REQUEST_TYPES.includes(requestType as (typeof REQUEST_TYPES)[number])) {
+  if (!REQUEST_TYPE_OPTIONS.includes(requestType as (typeof REQUEST_TYPE_OPTIONS)[number])) {
     return NextResponse.json({ error: 'request type must be a supported starting point' }, { status: 400 })
+  }
+  if (!INTAKE_MODES.includes(intakeMode as IntakeMode)) {
+    return NextResponse.json({ error: 'intake mode must be FORM or GUIDED_CHAT' }, { status: 400 })
   }
 
   const dueDateValue = String(body.dueDate ?? '').trim()
@@ -115,6 +112,7 @@ export async function POST(req: NextRequest) {
       title,
       description,
       requesterEmail: email,
+      intakeMode,
       requestType,
       businessImpact,
       successMeasures,
@@ -130,7 +128,7 @@ export async function POST(req: NextRequest) {
       ...(pixelDoodle ? { pixelDoodle: pixelDoodle as unknown as Prisma.InputJsonValue } : {}),
       jiraSyncStatus: 'QUEUED',
       actions: {
-        create: { action: 'submitted', actor: email, source: 'ui' },
+        create: { action: 'submitted', actor: email, source: 'ui', metadata: { intakeMode } },
       },
     },
   })

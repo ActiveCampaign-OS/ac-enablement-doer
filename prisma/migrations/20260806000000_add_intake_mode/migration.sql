@@ -1,0 +1,1 @@
+ALTER TABLE "TrainingRequest" ADD COLUMN "intakeMode" TEXT NOT NULL DEFAULT 'FORM';

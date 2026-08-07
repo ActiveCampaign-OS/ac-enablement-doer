@@ -67,6 +67,7 @@ model TrainingRequest {
   title           String
   description     String           @db.Text // situation, challenge, or initiative
   requesterEmail  String // from SSO header
+  intakeMode      String           @default("FORM") // FORM | GUIDED_CHAT, used to compare pilot intake paths
   requestType     String?          // requester starting point; never a binding solution choice
   businessImpact  String?          @db.Text // business outcome the stakeholder wants
   successMeasures String?          @db.Text // observable indicators of success
