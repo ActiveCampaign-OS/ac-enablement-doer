@@ -24,6 +24,7 @@ export function assetArtifactFileName(title: string, kind: AssetArtifactKind): s
     MARKDOWN: 'draft.md',
     DECK_STORYBOARD: 'deck-storyboard.json',
     DOCX: 'document.docx',
+    PPTX: 'presentation.pptx',
   }
   return `${assetFileStem(title)}-${suffix[kind]}`
 }

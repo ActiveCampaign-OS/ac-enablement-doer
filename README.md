@@ -135,9 +135,11 @@ in-cluster and the headers are omitted.
 - Job aids and manager guides are stored as both editable Markdown and downloadable `.docx` files.
   Operator edits rebuild both artifacts so the native document stays current.
 - A deck is intentionally delivered as a review-ready slide storyboard until a Spark-deployable
-  editable PPTX renderer is available. The Codex-only `@oai/artifact-tool` package is not
-  installable in the Spark image, so the app does not pretend to export a PowerPoint file it
-  cannot render and validate in production.
+  editable PPTX renderer is available. Deck builds now create a native, editable `.pptx` through
+  PptxGenJS and store it in the same private Spark bucket as other artifacts. The renderer applies
+  the supplied 2026 ActiveCampaign template's typography, colors, and layout system without
+  bundling its large media library. See `docs/ac-2026-template-asset-policy.md` for the
+  provenance-aware icon, illustration, and template-layout inventory policy.
 - **Data Wizard evidence research** — operators can copy a privacy-minimized, request-specific
   brief into the StratOps Data Wizard from a request record. It explicitly asks Data Wizard to
   consult canonical BI definitions and approved dashboards before proposing a read-only Snowflake

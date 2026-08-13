@@ -91,7 +91,8 @@ function appendSection(sections: string[], label: string, value: string | null |
 function descriptionText(request: JiraRequest): string {
   const latestAssessment = request.assessments[0] ?? null
   const latestBuild = request.assetBuilds[0] ?? null
-  const primaryArtifact = latestBuild?.artifacts.find((artifact) => artifact.kind === 'DOCX')
+  const primaryArtifact = latestBuild?.artifacts.find((artifact) => artifact.kind === 'PPTX')
+    ?? latestBuild?.artifacts.find((artifact) => artifact.kind === 'DOCX')
     ?? latestBuild?.artifacts.find((artifact) => artifact.kind === 'DECK_STORYBOARD')
     ?? latestBuild?.artifacts[0]
   const entries: Array<[string, string | null | undefined]> = [

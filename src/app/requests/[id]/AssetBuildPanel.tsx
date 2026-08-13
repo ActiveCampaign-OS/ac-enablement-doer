@@ -2,15 +2,7 @@
 
 import { useEffect, useMemo, useState } from 'react'
 import { useRouter } from 'next/navigation'
-
-interface DeckSlide {
-  number: number
-  title: string
-  takeaway: string
-  body: string[]
-  speakerNotes: string
-  visualDirection: string
-}
+import { DeckPreviewer, type DeckPreviewSlide } from './DeckPreviewer'
 
 interface AssetBuildView {
   id: string
@@ -35,17 +27,24 @@ const LABELS: Record<AssetBuildView['status'], string> = {
   FAILED: 'NEEDS RETRY',
 }
 
-function slidesFrom(value: unknown): DeckSlide[] {
+function slidesFrom(value: unknown): DeckPreviewSlide[] {
   if (!value || typeof value !== 'object') return []
   const slides = (value as { slides?: unknown }).slides
   if (!Array.isArray(slides)) return []
   return slides.filter(
-    (slide): slide is DeckSlide =>
+    (slide): slide is DeckPreviewSlide =>
       !!slide &&
       typeof slide === 'object' &&
-      typeof (slide as DeckSlide).title === 'string' &&
-      Array.isArray((slide as DeckSlide).body)
+      typeof (slide as DeckPreviewSlide).title === 'string' &&
+      Array.isArray((slide as DeckPreviewSlide).body)
   )
+}
+
+function downloadLabel(artifact: AssetBuildView['artifacts'][number]): string {
+  if (artifact.kind === 'PPTX') return 'Download editable PowerPoint'
+  if (artifact.kind === 'DOCX') return 'Download DOCX'
+  if (artifact.kind === 'DECK_STORYBOARD') return 'Download storyboard JSON'
+  return `Download ${artifact.fileName}`
 }
 
 export function AssetBuildPanel({ requestId, build }: { requestId: string; build: AssetBuildView }) {
@@ -126,26 +125,7 @@ export function AssetBuildPanel({ requestId, build }: { requestId: string; build
       {build.draftSummary && <p className="border-y-3 border-black py-3 text-sm font-bold">{build.draftSummary}</p>}
 
       {build.deliverableType === 'DECK' && slides.length > 0 && (
-        <div className="space-y-3">
-          <p className="text-xs font-bold uppercase tracking-wide text-[#625d53]">
-            Presentation storyboard · editable PPTX export awaits a Spark-deployable presentation renderer
-          </p>
-          <div className="grid gap-3 sm:grid-cols-2">
-            {slides.map((slide) => (
-              <details key={slide.number} className="border-3 border-black bg-[#fffdf5] p-3" open={slide.number === 1}>
-                <summary className="cursor-pointer font-black uppercase text-sm">
-                  {slide.number}. {slide.title}
-                </summary>
-                <p className="mt-2 text-sm font-bold">{slide.takeaway}</p>
-                <ul className="mt-2 list-disc space-y-1 pl-5 text-sm font-semibold">
-                  {slide.body.map((item) => <li key={item}>{item}</li>)}
-                </ul>
-                <p className="mt-3 text-xs font-semibold text-[#625d53]">Facilitator: {slide.speakerNotes}</p>
-                <p className="mt-2 text-xs font-semibold text-[#625d53]">Visual: {slide.visualDirection}</p>
-              </details>
-            ))}
-          </div>
-        </div>
+        <DeckPreviewer title={build.draftTitle ?? 'Enablement presentation'} summary={build.draftSummary ?? ''} slides={slides} />
       )}
 
       {build.draftContent && !editing && (
@@ -169,7 +149,7 @@ export function AssetBuildPanel({ requestId, build }: { requestId: string; build
       <div className="flex gap-2 flex-wrap">
         {build.artifacts.map((artifact) => (
           <a key={artifact.id} href={`/api/asset-builds/${artifact.id}/download`} className="nb-button nb-button-secondary">
-            Download {artifact.fileName}
+            {downloadLabel(artifact)}
           </a>
         ))}
         {isOperator && build.status === 'DRAFT_READY' && !editing && (

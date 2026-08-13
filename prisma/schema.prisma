@@ -54,6 +54,7 @@ enum AssetArtifactKind {
   MARKDOWN
   DECK_STORYBOARD
   DOCX
+  PPTX
 }
 
 enum MessageRole {
