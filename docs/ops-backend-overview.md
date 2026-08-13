@@ -46,7 +46,7 @@ The backend derives the autonomy level from the deliverable type; the AI model c
 | --- | --- | --- |
 | Self-serve resource | Request is marked delivered after confirmation; no new asset is generated. | Ensure the recommended resource remains current. |
 | Job aid or manager guide | Creates a durable asset-build job. The worker drafts Markdown and a downloadable `.docx`. | Review, edit if needed, approve, then mark delivered. |
-| Deck | Creates a durable asset-build job and produces a review-ready slide storyboard with an in-app preview and JSON source. | Review/approve and use the storyboard to create the final presentation where needed. A production PPTX renderer is not currently deployed. |
+| Deck | Creates a durable asset-build job and produces a review-ready slide storyboard, in-app visual preview, JSON source, and editable PPTX. | Review/approve the deck, then share or publish it through the approved destination. |
 | Rise course, Solidroad simulation, or other | Moves to **Human build needed**. | An operator takes the work into the appropriate build process. |
 
 ### 3. Asset generation and review

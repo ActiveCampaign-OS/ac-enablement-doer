@@ -16,9 +16,9 @@
     "@modelcontextprotocol/sdk": "^1.29.0",
     "@prisma/client": "^6.0.0",
     "docx": "^9.7.1",
+    "jszip": "^3.10.1",
     "marked": "^14.1.4",
     "next": "^16.3.0",
-    "pptxgenjs": "^4.0.1",
     "prisma": "^6.0.0",
     "react": "^19.0.0",
     "react-dom": "^19.0.0"
