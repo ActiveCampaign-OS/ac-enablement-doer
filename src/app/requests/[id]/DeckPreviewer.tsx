@@ -98,9 +98,9 @@ export function DeckPreviewer({ title, summary, slides }: { title: string; summa
                 {active.body.map((item) => <li key={item}>{item}</li>)}
               </ul>
               <div className="nb-deck-preview-visual">
-                <span>Visual direction</span>
-                <strong>{active.visualDirection || 'Use a simple visual that reinforces the learner action.'}</strong>
-                {active.speakerNotes && <small>Facilitator: {active.speakerNotes}</small>}
+                <span>Deck review</span>
+                <strong>Visual treatment and facilitator guidance are preserved in this slide&apos;s review notes.</strong>
+                <small>Open the notes below to review them.</small>
               </div>
             </>
           )}
@@ -108,8 +108,8 @@ export function DeckPreviewer({ title, summary, slides }: { title: string; summa
             <>
               <h4>{active.title}</h4>
               <p className="nb-deck-preview-takeaway">{active.takeaway}</p>
-              <div className="nb-deck-preview-cards">
-                {active.body.slice(0, 3).map((item, index) => (
+              <div className={`nb-deck-preview-cards${active.body.length === 4 ? ' is-four' : ''}`}>
+                {active.body.slice(0, 4).map((item, index) => (
                   <article key={item} className={index === 1 ? 'is-accent' : undefined}>
                     <span>{String(index + 1).padStart(2, '0')}</span>
                     <strong>{item}</strong>
@@ -153,10 +153,10 @@ export function DeckPreviewer({ title, summary, slides }: { title: string; summa
         </button>
       </div>
 
-      {active.speakerNotes && (
+      {(active.speakerNotes || active.visualDirection) && (
         <details className="nb-deck-preview-notes">
-          <summary>Show speaker notes for this slide</summary>
-          <p>{active.speakerNotes}</p>
+          <summary>Show review notes for this slide</summary>
+          <p>{[active.visualDirection && `Visual direction:\n${active.visualDirection}`, active.speakerNotes && `Facilitator notes:\n${active.speakerNotes}`].filter(Boolean).join('\n\n')}</p>
         </details>
       )}
     </section>

@@ -155,6 +155,12 @@ function addDeckFooter(slide: SlideBuilder, page: number, dark = false): void {
   })
 }
 
+function speakerNotes(deckSlide: NativePowerPointSlide): string {
+  const visualDirection = deckSlide.visualDirection || 'Use the established ActiveCampaign visual system for this slide.'
+  const facilitatorNotes = deckSlide.speakerNotes || 'Facilitator guidance was not provided.'
+  return `Visual direction:\n${visualDirection}\n\nFacilitator notes:\n${facilitatorNotes}`
+}
+
 function coverSlide(draft: NativePowerPointDraft): { notes: string; xml: string } {
   const slide = new SlideBuilder()
   slide.addShape('arc', { x: 7.1, y: -0.45, width: 3.9, height: 3.9, lineColor: COLORS.acBlue, lineWidth: 18, rotate: 24 })
@@ -268,7 +274,9 @@ function detailsSlide(deckSlide: NativePowerPointSlide, page: number): { notes: 
     bullets: true,
   })
   slide.addShape('roundRect', { x: 5.25, y: 1.45, width: 4.1, height: 3.18, fill: COLORS.white })
-  slide.addText('VISUAL DIRECTION', {
+  slide.addShape('ellipse', { x: 7.05, y: 2.1, width: 1.15, height: 1.15, fill: COLORS.mist })
+  slide.addShape('arc', { x: 6.33, y: 1.44, width: 2.6, height: 2.6, lineColor: COLORS.acBlue, lineWidth: 7, rotate: 18 })
+  slide.addText('DECK REVIEW', {
     x: 5.65,
     y: 1.94,
     width: 2.5,
@@ -279,38 +287,18 @@ function detailsSlide(deckSlide: NativePowerPointSlide, page: number): { notes: 
     bold: true,
     characterSpacing: 1,
   })
-  slide.addText(deckSlide.visualDirection || 'Use a simple visual that reinforces the learner action.', {
+  slide.addText('The visual treatment and facilitator guidance are preserved in this slide’s speaker notes.', {
     x: 5.65,
-    y: 2.37,
+    y: 3.42,
     width: 3.15,
-    height: 1.05,
+    height: 0.7,
     color: COLORS.dusk,
     font: HEADLINE_FONT,
-    fontSize: 17,
+    fontSize: 13.5,
     bold: true,
-  })
-  slide.addText('Facilitator prompt', {
-    x: 5.65,
-    y: 3.76,
-    width: 2.1,
-    height: 0.18,
-    color: COLORS.acBlue,
-    font: BODY_FONT,
-    fontSize: 7.5,
-    bold: true,
-    characterSpacing: 0.6,
-  })
-  slide.addText(deckSlide.speakerNotes, {
-    x: 5.65,
-    y: 4.04,
-    width: 3.12,
-    height: 0.42,
-    color: COLORS.dusk,
-    font: BODY_FONT,
-    fontSize: 8.5,
   })
   addDeckFooter(slide, page)
-  return { notes: deckSlide.speakerNotes, xml: slide.xml(`Slide ${page}`, COLORS.cream) }
+  return { notes: speakerNotes(deckSlide), xml: slide.xml(`Slide ${page}`, COLORS.cream) }
 }
 
 function cardsSlide(deckSlide: NativePowerPointSlide, page: number): { notes: string; xml: string } {
@@ -335,13 +323,20 @@ function cardsSlide(deckSlide: NativePowerPointSlide, page: number): { notes: st
     fontSize: 13.5,
     bold: true,
   })
-  deckSlide.body.slice(0, 3).forEach((item, index) => {
-    const x = 0.52 + index * 2.99
-    const darkCard = index === 1
-    slide.addShape('roundRect', { x, y: 2.22, width: 2.75, height: 2.08, fill: darkCard ? COLORS.acBlue : COLORS.white })
+  const items = deckSlide.body.slice(0, 4)
+  const isFourCardLayout = items.length === 4
+  items.forEach((item, index) => {
+    const column = isFourCardLayout ? index % 2 : index
+    const row = isFourCardLayout ? Math.floor(index / 2) : 0
+    const x = isFourCardLayout ? 0.52 + column * 4.43 : 0.52 + column * 2.99
+    const y = isFourCardLayout ? 2.08 + row * 1.33 : 2.22
+    const width = isFourCardLayout ? 4.08 : 2.75
+    const height = isFourCardLayout ? 1.1 : 2.08
+    const darkCard = isFourCardLayout ? index === 1 || index === 2 : index === 1
+    slide.addShape('roundRect', { x, y, width, height, fill: darkCard ? COLORS.acBlue : COLORS.white })
     slide.addText(String(index + 1).padStart(2, '0'), {
       x: x + 0.25,
-      y: 2.52,
+      y: y + (isFourCardLayout ? 0.17 : 0.3),
       width: 0.42,
       height: 0.23,
       color: darkCard ? COLORS.mist : COLORS.acBlue,
@@ -351,18 +346,18 @@ function cardsSlide(deckSlide: NativePowerPointSlide, page: number): { notes: st
     })
     slide.addText(item, {
       x: x + 0.25,
-      y: 3.04,
-      width: 2.25,
-      height: 0.9,
+      y: y + (isFourCardLayout ? 0.47 : 0.82),
+      width: isFourCardLayout ? 3.48 : 2.25,
+      height: isFourCardLayout ? 0.44 : 0.9,
       color: darkCard ? COLORS.white : COLORS.dusk,
       font: HEADLINE_FONT,
-      fontSize: 15.5,
+      fontSize: isFourCardLayout ? 11.5 : 15.5,
       bold: true,
       valign: 'middle',
     })
   })
   addDeckFooter(slide, page)
-  return { notes: deckSlide.speakerNotes, xml: slide.xml(`Slide ${page}`, COLORS.lightBlue) }
+  return { notes: speakerNotes(deckSlide), xml: slide.xml(`Slide ${page}`, COLORS.lightBlue) }
 }
 
 function slideRelationshipXml(index: number): string {
